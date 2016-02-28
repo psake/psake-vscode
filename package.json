@@ -1,0 +1,38 @@
+{
+	"name": "psake-vscode",
+	"displayName": "psake Snippets",
+	"publisher": "psake",
+	"description": "Set of snippets for helping with creating psake scripts.",
+	"version": "0.1.0",
+	"icon": "",
+	"private": true,
+	"author": {
+		"name": "psake"
+	},
+	"bugs": {
+		"url": "https://github.com/psake/psake-vscode/issues"
+  },
+  "homepage": "https://github.com/psake/psake-vscode",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/psake/psake-vscode"
+	},
+	"galleryBanner": {
+        "color": "#FFE05C",
+        "theme": "light"
+  },
+	"engines": {
+		"vscode": "^0.10.1"
+	},
+	"categories": [
+		"Snippets"
+	],
+	"contributes": {
+		"snippets": [
+            {
+                "language": "powershell",
+                "path": "./snippets/powershell.json"
+            }
+        ]
+	}
+}

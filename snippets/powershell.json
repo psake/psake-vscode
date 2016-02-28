@@ -1,0 +1,18 @@
+{
+    "psake Task": {
+            "prefix": "psakeTask",
+            "body": [
+                "Task -Name ${name} -Depends ${depends} -Description \"${description}\";"
+            ],
+            "description": "psake task"
+        },
+    "psake Task With Action": {
+            "prefix": "psakeTask",
+            "body": [
+                "Task -Name ${name} -Depends ${depends} -Description \"${description}\" -Action {",
+                "\t$0",
+                "}"
+            ],
+            "description": "psake task (with action)"
+        }
+}

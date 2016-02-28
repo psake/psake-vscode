@@ -15,7 +15,7 @@ To use them, simply open your powershell file, and then type `psake` followed by
 
 and then simply arrow up/down to the one you want and press enter, or left mouse click.  From there the PowerShell for the task definition will be generated, and the cursor will be placed ready for you to start filling in the content of the task...
 
-![Expanded psake Snippet](https://raw.githubusercontent.com/psake/psake-vscode/master/images/Expanded-Task-Snippet.png)
+![Expanded psake Snippet](https://raw.githubusercontent.com/psake/psake-vscode/master/images/Expanded-Psake-Snippet.png)
 
 # Contribution
 

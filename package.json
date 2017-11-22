@@ -31,7 +31,7 @@
 	"activationEvents": [
 		"onCommand:psake.buildFile"
 	],
-	"main": "./out/src/psakeMain",
+	"main": "./out/psakeMain",
 	"contributes": {
 		"snippets": [
 			{

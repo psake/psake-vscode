@@ -29,7 +29,8 @@
 		"Snippets"
 	],
 	"activationEvents": [
-		"onCommand:psake.buildFile"
+		"onCommand:psake.buildFile",
+		"onCommand:workbench.action.tasks.runTask"
 	],
 	"main": "./out/psakeMain",
 	"contributes": {
@@ -44,7 +45,23 @@
 				"command": "psake.buildFile",
 				"title": "psake: Install sample build file"
 			}
-		]
+		],
+		"configuration": {
+			"type": "object",
+			"title": "psake configuration",
+			"properties": {
+				"psake.taskRunner":{
+					"type": "object",
+					"default":{
+						"autoDetect": true,
+						"scriptsIncludePattern": "psakefile.ps1",
+						"scriptsExcludePattern": "",
+						"taskRegularExpression": "Task (.*?) "
+					},
+					"description": "The psake Task Runner Settings"
+				}
+			}
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "tsc -p ./",

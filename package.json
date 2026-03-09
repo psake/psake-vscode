@@ -59,6 +59,10 @@
 			{
 				"command": "psake.openTaskDefinition",
 				"title": "psake: Go to Task Definition"
+			},
+			{
+				"command": "psake.syncTasks",
+				"title": "psake: Sync Tasks to tasks.json"
 			}
 		],
 		"taskDefinitions": [

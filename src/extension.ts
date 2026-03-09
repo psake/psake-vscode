@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import { PsakeTaskProvider } from './taskProvider.js';
 import { PsakeTreeDataProvider } from './treeView.js';
+import { PsakeTaskCompletionProvider } from './tasksJsonCompletionProvider.js';
 import { installBuildFileCommand } from './scaffoldCommand.js';
+import { syncTasksCommand } from './syncTasksCommand.js';
 import { findPsakeFiles } from './psakeParser.js';
 
 function getBuildFilePattern(): string {
@@ -35,6 +37,21 @@ export function activate(context: vscode.ExtensionContext): void {
     const taskProvider = new PsakeTaskProvider(watcher);
     context.subscriptions.push(
         vscode.tasks.registerTaskProvider('psake', taskProvider)
+    );
+
+    // IntelliSense for "task" values in tasks.json when type is "psake"
+    const tasksJsonSelector: vscode.DocumentSelector = {
+        language: 'jsonc',
+        pattern: '**/.vscode/tasks.json',
+    };
+    const completionProvider = new PsakeTaskCompletionProvider(watcher);
+    context.subscriptions.push(
+        vscode.languages.registerCompletionItemProvider(tasksJsonSelector, completionProvider, '"')
+    );
+
+    // Command to sync discovered psake tasks into tasks.json
+    context.subscriptions.push(
+        vscode.commands.registerCommand('psake.syncTasks', syncTasksCommand)
     );
 
     // Set the hasTaskFile context key eagerly so the tree view appears

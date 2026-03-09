@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Spell check
+        uses: streetsidesoftware/cspell-action@v6
+        with:
+          incremental_files_only: true
+          suggestions: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Type check tests
+        run: npx tsc -p tsconfig.test.json --noEmit
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension
+        run: node esbuild.mjs
+
+      - name: Compile tests
+        run: npx tsc -p tsconfig.test.json
+
+  build:
+    name: Build VSIX
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension (production)
+        run: node esbuild.mjs --production
+
+      - name: Package VSIX
+        run: npx @vscode/vsce package --out ./out/
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: psake-vscode-vsix
+          path: out/*.vsix
+          retention-days: 14

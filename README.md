@@ -1,26 +1,110 @@
-# psake
+# psake for VS Code
 
-This addin brings a set of snippets which can be used when creating [psake](https://github.com/psake/psake) scripts.
+Language support, task integration, and snippets for [psake](https://github.com/psake/psake) — a PowerShell build automation tool.
 
-# Usage
+> **Requirements:** The [PowerShell extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.PowerShell) must be installed.
 
-There are currently 2 snippets included in this VS Code extension:
+---
 
-* psake Task
-* psake Task With Action
+## Features
 
-To use them, simply open your powershell file, and then type `psake` followed by `ctrl-space`.  This will then show the available snippets...
+### Task Provider
 
-![Available psake Snippets](https://raw.githubusercontent.com/psake/psake-vscode/master/images/Psake-Snippets.png)
+The extension automatically detects tasks defined in your `psakefile.ps1` and surfaces them in VS Code's built-in task system.
 
-and then simply arrow up/down to the one you want and press enter, or left mouse click.  From there the PowerShell for the task definition will be generated, and the cursor will be placed ready for you to start filling in the content of the task...
+- Open the **Command Palette** → **Tasks: Run Task** → select any discovered psake task
+- Tasks are discovered from all workspace folders
+- The `default` task is automatically placed in the **Build** task group (accessible via **Ctrl+Shift+B**)
+- Tasks update automatically when you save changes to `psakefile.ps1`
 
-![Expanded psake Snippet](https://raw.githubusercontent.com/psake/psake-vscode/master/images/Expanded-Psake-Snippet.png)
+You can also reference psake tasks in your `tasks.json`:
 
-# Contribution
+```json
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "psake",
+            "task": "Build",
+            "file": "psakefile.ps1"
+        }
+    ]
+}
+```
 
-If you would like to see any other snippet added for this VS Code Extension, feel free to raise an [issue](https://github.com/psake/psake-vscode/issues).
+### Build Script Support
 
-# Releases
+Most psake projects use a wrapper script (typically `build.ps1`) as the entry point. The extension auto-detects `build.ps1` in the workspace root and runs tasks through it instead of calling `Invoke-psake` directly:
 
-To find out what was released in each version of this extension, check out the [releases](https://github.com/psake/psake-vscode/releases) page.
+```
+.\build.ps1 -Task Build
+```
+
+The parameter name defaults to `-Task` but is configurable via `psake.buildScriptTaskParameter`. If your project uses a different wrapper script path, set `psake.buildScript`. To disable build script detection and always call `Invoke-psake` directly, set `psake.buildScript` to `"none"`.
+
+### psake Tasks Explorer
+
+A **psake Tasks** panel appears in the Explorer sidebar when a `psakefile.ps1` is found in your workspace. It shows all tasks with their descriptions and dependencies. Clicking a task navigates to its definition in the file; the inline play button runs the task.
+
+### CodeLens — Run Task from the Editor
+
+Each `Task` declaration in your `psakefile.ps1` displays a **▶ Run Task** action above it. Click it to execute that task immediately without leaving the editor.
+
+### tasks.json IntelliSense
+
+When editing `.vscode/tasks.json`, the extension provides autocomplete suggestions for the `"task"` property inside `"type": "psake"` task definitions. The suggestions are dynamically populated from the task names discovered in your psakefile(s).
+
+### Sync Tasks to tasks.json
+
+The **psake: Sync Tasks to tasks.json** command (Command Palette) scans your workspace for psake tasks and adds them to `.vscode/tasks.json`. Existing entries are preserved so any customizations (such as `problemMatcher` or `group`) are not overwritten.
+
+### Scaffold Build File
+
+The **psake: Install sample build file** command (Command Palette) creates a starter `psakefile.ps1` in your workspace with four sample tasks (`default`, `Test`, `Compile`, `Clean`).
+
+### Snippets
+
+Type `psake` + `Ctrl+Space` in a PowerShell file to access the following snippets:
+
+| Prefix | Description |
+|--------|-------------|
+| `psakeTask` | Minimal task with inline action block |
+| `psakeTaskFull` | Task with `-Depends` and `-Description` |
+| `psakeTaskDependsOnly` | Task that only declares dependencies |
+| `psakeProperties` | Properties block for shared build variables |
+| `psakeInclude` | Include another PowerShell script |
+| `psakeFramework` | Set the .NET framework version for MSBuild |
+| `psakeFormatTaskName` | Customize task name display output |
+| `psakeTaskSetup` | Block that runs before each task |
+| `psakeTaskTearDown` | Block that runs after each task |
+
+---
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| **psake: Install sample build file** | Scaffold a starter `psakefile.ps1` |
+| **psake: Sync Tasks to tasks.json** | Add discovered psake tasks to `.vscode/tasks.json` |
+| **psake: Refresh Tasks** | Re-scan the build file and update the task tree |
+
+---
+
+## Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `psake.buildFile` | `psakefile.ps1` | Default build file name used for scaffolding and task discovery |
+| `psake.taskProvider.enabled` | `true` | Enable or disable automatic task detection |
+| `psake.buildScript` | `""` (auto-detect) | Path to a wrapper build script (e.g., `build.ps1`). When empty, auto-detects `build.ps1` in the workspace root. Set to `"none"` to always use `Invoke-psake` directly. |
+| `psake.buildScriptTaskParameter` | `Task` | The parameter name on the build script that accepts the task name |
+
+---
+
+## Contribution
+
+Issues and pull requests are welcome on [GitHub](https://github.com/psake/psake-vscode/issues).
+
+## Releases
+
+See the [releases](https://github.com/psake/psake-vscode/releases) page for version history.

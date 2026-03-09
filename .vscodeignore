@@ -1,0 +1,16 @@
+.vscode/
+src/
+out/
+node_modules/
+.gitignore
+.gitattributes
+.github/
+tsconfig.json
+tsconfig.test.json
+esbuild.mjs
+PLAN.md
+**/*.map
+**/*.ts
+!dist/extension.js
+psake.ps1
+build.ps1

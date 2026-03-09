@@ -36,6 +36,18 @@ You can also reference psake tasks in your `tasks.json`:
 
 A **psake Tasks** panel appears in the Explorer sidebar when a `psakefile.ps1` is found in your workspace. It shows all tasks with their descriptions and dependencies. Clicking a task navigates to its definition in the file; the inline play button runs the task.
 
+### CodeLens — Run Task from the Editor
+
+Each `Task` declaration in your `psakefile.ps1` displays a **▶ Run Task** action above it. Click it to execute that task immediately without leaving the editor.
+
+### tasks.json IntelliSense
+
+When editing `.vscode/tasks.json`, the extension provides autocomplete suggestions for the `"task"` property inside `"type": "psake"` task definitions. The suggestions are dynamically populated from the task names discovered in your psakefile(s).
+
+### Sync Tasks to tasks.json
+
+The **psake: Sync Tasks to tasks.json** command (Command Palette) scans your workspace for psake tasks and adds them to `.vscode/tasks.json`. Existing entries are preserved so any customizations (such as `problemMatcher` or `group`) are not overwritten.
+
 ### Scaffold Build File
 
 The **psake: Install sample build file** command (Command Palette) creates a starter `psakefile.ps1` in your workspace with four sample tasks (`default`, `Test`, `Compile`, `Clean`).
@@ -55,6 +67,16 @@ Type `psake` + `Ctrl+Space` in a PowerShell file to access the following snippet
 | `psakeFormatTaskName` | Customize task name display output |
 | `psakeTaskSetup` | Block that runs before each task |
 | `psakeTaskTearDown` | Block that runs after each task |
+
+---
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| **psake: Install sample build file** | Scaffold a starter `psakefile.ps1` |
+| **psake: Sync Tasks to tasks.json** | Add discovered psake tasks to `.vscode/tasks.json` |
+| **psake: Refresh Tasks** | Re-scan the build file and update the task tree |
 
 ---
 

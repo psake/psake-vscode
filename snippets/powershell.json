@@ -2,18 +2,18 @@
 	"psake Task (simple)": {
 		"prefix": "psakeTask",
 		"body": [
-			"Task ${1:TaskName} {"
-			, "\t${0}"
-			, "}"
+			"Task ${1:TaskName} {",
+			"\t${0}",
+			"}"
 		],
 		"description": "A minimal psake task with an inline action block."
 	},
 	"psake Task (full)": {
 		"prefix": "psakeTaskFull",
 		"body": [
-			"Task ${1:TaskName} -Depends ${2:DependsOn} -Description '${3:Description}' {"
-			, "\t${0}"
-			, "}"
+			"Task ${1:TaskName} -Depends ${2:DependsOn} -Description '${3:Description}' {",
+			"\t${0}",
+			"}"
 		],
 		"description": "A psake task with Depends and Description parameters."
 	},
@@ -27,10 +27,10 @@
 	"psake Properties": {
 		"prefix": "psakeProperties",
 		"body": [
-			"Properties {"
-			, "\t$${1:variableName} = '${2:value}'"
-			, "\t${0}"
-			, "}"
+			"Properties {",
+			"\t\\$${1:variableName} = '${2:value}'",
+			"\t${0}",
+			"}"
 		],
 		"description": "A psake Properties block for declaring shared build variables."
 	},
@@ -51,29 +51,93 @@
 	"psake FormatTaskName": {
 		"prefix": "psakeFormatTaskName",
 		"body": [
-			"FormatTaskName {"
-			, "\tparam($taskName)"
-			, "\tWrite-Host \"Running task: $taskName\" -ForegroundColor Cyan"
-			, "}"
+			"FormatTaskName {",
+			"\tparam(\\$taskName)",
+			"\tWrite-Host \"Running task: \\$taskName\" -ForegroundColor Cyan",
+			"}"
 		],
 		"description": "Customize how task names are displayed when the build runs."
 	},
 	"psake TaskSetup": {
 		"prefix": "psakeTaskSetup",
 		"body": [
-			"TaskSetup {"
-			, "\t${0:# Runs before every task}"
-			, "}"
+			"TaskSetup {",
+			"\t${0:# Runs before every task}",
+			"}"
 		],
 		"description": "A block that runs before each task."
 	},
 	"psake TaskTearDown": {
 		"prefix": "psakeTaskTearDown",
 		"body": [
-			"TaskTearDown {"
-			, "\t${0:# Runs after every task}"
-			, "}"
+			"TaskTearDown {",
+			"\t${0:# Runs after every task}",
+			"}"
 		],
 		"description": "A block that runs after each task."
+	},
+	"psake BuildSetup": {
+		"prefix": "psakeBuildSetup",
+		"body": [
+			"BuildSetup {",
+			"\t${0:# Runs once before the first task}",
+			"}"
+		],
+		"description": "A block that runs once before the first task in the build."
+	},
+	"psake BuildTearDown": {
+		"prefix": "psakeBuildTearDown",
+		"body": [
+			"BuildTearDown {",
+			"\t${0:# Runs once after all tasks complete (or on failure)}",
+			"}"
+		],
+		"description": "A block that runs once after all tasks complete, or when the build fails."
+	},
+	"psake FormatTaskName (string)": {
+		"prefix": "psakeFormatTaskNameString",
+		"body": [
+			"FormatTaskName \"${1:-------- {0} --------}\""
+		],
+		"description": "Set a format string for task name display. {0} is replaced with the task name."
+	},
+	"psake Task (precondition)": {
+		"prefix": "psakeTaskPrecondition",
+		"body": [
+			"Task ${1:TaskName} -Depends ${2:DependsOn} -precondition { ${3:\\$Environment -eq 'Production'} } {",
+			"\t${0}",
+			"}"
+		],
+		"description": "A psake task that only runs when a precondition is met."
+	},
+	"psake Task (postcondition)": {
+		"prefix": "psakeTaskPostcondition",
+		"body": [
+			"Task ${1:TaskName} -Depends ${2:DependsOn} -postcondition { ${3:Test-Path '${4:./build/output}'} } {",
+			"\t${0}",
+			"}"
+		],
+		"description": "A psake task with a postcondition that validates the task produced expected output."
+	},
+	"psake Exec": {
+		"prefix": "psakeExec",
+		"body": [
+			"exec { ${0} }"
+		],
+		"description": "Run an external command and fail the build if it returns a non-zero exit code."
+	},
+	"psake Exec (with retries)": {
+		"prefix": "psakeExecRetry",
+		"body": [
+			"exec { ${1} } -maxRetries ${2:3}"
+		],
+		"description": "Run an external command with automatic retry on failure."
+	},
+	"psake Assert": {
+		"prefix": "psakeAssert",
+		"body": [
+			"Assert (${1:condition}) '${2:Assertion failed: description}'"
+		],
+		"description": "Assert a condition is true, failing the build with a message if it is not."
 	}
 }

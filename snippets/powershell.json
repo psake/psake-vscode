@@ -1,18 +1,79 @@
 {
-    "psake Task": {
-            "prefix": "psakeTask",
-            "body": [
-                "Task -Name ${name} -Depends ${depends} -Description \"${description}\";"
-            ],
-            "description": "psake task"
-        },
-    "psake Task With Action": {
-            "prefix": "psakeTask",
-            "body": [
-                "Task -Name ${name} -Depends ${depends} -Description \"${description}\" -Action {",
-                "\t$0",
-                "}"
-            ],
-            "description": "psake task (with action)"
-        }
+	"psake Task (simple)": {
+		"prefix": "psakeTask",
+		"body": [
+			"Task ${1:TaskName} {"
+			, "\t${0}"
+			, "}"
+		],
+		"description": "A minimal psake task with an inline action block."
+	},
+	"psake Task (full)": {
+		"prefix": "psakeTaskFull",
+		"body": [
+			"Task ${1:TaskName} -Depends ${2:DependsOn} -Description '${3:Description}' {"
+			, "\t${0}"
+			, "}"
+		],
+		"description": "A psake task with Depends and Description parameters."
+	},
+	"psake Task (no action)": {
+		"prefix": "psakeTaskDependsOnly",
+		"body": [
+			"Task ${1:TaskName} -Depends ${2:DependsOn}"
+		],
+		"description": "A psake task that only declares dependencies (no action block)."
+	},
+	"psake Properties": {
+		"prefix": "psakeProperties",
+		"body": [
+			"Properties {"
+			, "\t$${1:variableName} = '${2:value}'"
+			, "\t${0}"
+			, "}"
+		],
+		"description": "A psake Properties block for declaring shared build variables."
+	},
+	"psake Include": {
+		"prefix": "psakeInclude",
+		"body": [
+			"Include '${1:./path/to/file.ps1}'"
+		],
+		"description": "Include another PowerShell script into the build."
+	},
+	"psake Framework": {
+		"prefix": "psakeFramework",
+		"body": [
+			"Framework '${1|4.0,4.0x86,4.0x64,3.5,3.5x86,3.5x64,2.0|}'"
+		],
+		"description": "Set the .NET framework version used for MSBuild."
+	},
+	"psake FormatTaskName": {
+		"prefix": "psakeFormatTaskName",
+		"body": [
+			"FormatTaskName {"
+			, "\tparam($taskName)"
+			, "\tWrite-Host \"Running task: $taskName\" -ForegroundColor Cyan"
+			, "}"
+		],
+		"description": "Customize how task names are displayed when the build runs."
+	},
+	"psake TaskSetup": {
+		"prefix": "psakeTaskSetup",
+		"body": [
+			"TaskSetup {"
+			, "\t${0:# Runs before every task}"
+			, "}"
+		],
+		"description": "A block that runs before each task."
+	},
+	"psake TaskTearDown": {
+		"prefix": "psakeTaskTearDown",
+		"body": [
+			"TaskTearDown {"
+			, "\t${0:# Runs after every task}"
+			, "}"
+		],
+		"description": "A block that runs after each task."
+	}
 }

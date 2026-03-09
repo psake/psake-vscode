@@ -2,8 +2,8 @@
 	"name": "psake-vscode",
 	"displayName": "psake",
 	"publisher": "psake",
-	"description": "Psake build script language support.",
-	"version": "0.1.0",
+	"description": "Psake build script language support for Visual Studio Code.",
+	"version": "1.0.0",
 	"icon": "images/psake.png",
 	"private": true,
 	"author": {
@@ -22,16 +22,17 @@
 		"theme": "light"
 	},
 	"engines": {
-		"vscode": "^1.16.0"
+		"vscode": "^1.90.0"
 	},
 	"categories": [
 		"Languages",
-		"Snippets"
+		"Snippets",
+		"Other"
 	],
 	"activationEvents": [
-		"onCommand:psake.buildFile"
+		"workspaceContains:**/psakefile.ps1"
 	],
-	"main": "./out/psakeMain",
+	"main": "./dist/extension.js",
 	"contributes": {
 		"snippets": [
 			{
@@ -43,21 +44,104 @@
 			{
 				"command": "psake.buildFile",
 				"title": "psake: Install sample build file"
+			},
+			{
+				"command": "psake.runTask",
+				"title": "psake: Run Task",
+				"icon": "$(play)"
+			},
+			{
+				"command": "psake.refreshTasks",
+				"title": "psake: Refresh Tasks",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "psake.openTaskDefinition",
+				"title": "psake: Go to Task Definition"
 			}
-		]
+		],
+		"taskDefinitions": [
+			{
+				"type": "psake",
+				"required": [
+					"task"
+				],
+				"properties": {
+					"task": {
+						"type": "string",
+						"description": "The psake task name to execute."
+					},
+					"file": {
+						"type": "string",
+						"description": "The psake build file path, relative to the workspace folder. Defaults to psakefile.ps1."
+					}
+				}
+			}
+		],
+		"views": {
+			"explorer": [
+				{
+					"id": "psakeTasksView",
+					"name": "psake Tasks",
+					"when": "psake:hasTaskFile",
+					"icon": "images/psake.png"
+				}
+			]
+		},
+		"menus": {
+			"view/title": [
+				{
+					"command": "psake.refreshTasks",
+					"when": "view == psakeTasksView",
+					"group": "navigation"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "psake.runTask",
+					"when": "viewItem == psakeTask",
+					"group": "inline"
+				},
+				{
+					"command": "psake.openTaskDefinition",
+					"when": "viewItem == psakeTask",
+					"group": "navigation"
+				}
+			]
+		},
+		"configuration": {
+			"title": "psake",
+			"properties": {
+				"psake.buildFile": {
+					"type": "string",
+					"default": "psakefile.ps1",
+					"description": "The default name for the psake build file."
+				},
+				"psake.taskProvider.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable automatic detection of psake tasks from the build file."
+				}
+			}
+		}
 	},
 	"scripts": {
-		"vscode:prepublish": "tsc -p ./",
-		"compile": "tsc -watch -p ./",
-		"postinstall": "node ./node_modules/vscode/bin/install",
-		"test": "node ./node_modules/vscode/bin/test"
+		"vscode:prepublish": "node esbuild.mjs --production",
+		"build": "node esbuild.mjs",
+		"watch": "node esbuild.mjs --watch",
+		"compile-tests": "tsc -p tsconfig.test.json",
+		"test": "node ./dist/test/runTest.js",
+		"package": "vsce package"
 	},
 	"devDependencies": {
-		"@types/mocha": "^2.2.32",
-		"@types/node": "^6.0.40",
-		"mocha": "^2.3.3",
-		"typescript": "2.5.3",
-		"vscode": "^1.0.0"
+		"@types/mocha": "^10.0.7",
+		"@types/node": "^20.14.0",
+		"@types/vscode": "^1.90.0",
+		"@vscode/test-electron": "^2.4.0",
+		"@vscode/vsce": "^3.1.0",
+		"esbuild": "^0.23.0",
+		"mocha": "^10.6.0",
+		"typescript": "~5.5.0"
 	},
 	"extensionDependencies": [
 		"ms-vscode.PowerShell"

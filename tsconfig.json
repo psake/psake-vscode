@@ -1,10 +1,11 @@
 {
 	"compilerOptions": {
-		"module": "commonjs",
-		"target": "es6",
-		"outDir": "out",
+		"module": "Node16",
+		"target": "ES2022",
+		"moduleResolution": "Node16",
+		"outDir": "dist",
 		"lib": [
-			"es6"
+			"ES2022"
 		],
 		"sourceMap": true,
 		"noUnusedParameters": true,
@@ -17,7 +18,11 @@
 		"noImplicitThis": true,
 		"strict": true
 	},
+	"include": [
+		"src"
+	],
 	"exclude": [
-		"node_modules"
+		"node_modules",
+		"src/test"
 	]
 }

@@ -112,6 +112,16 @@
 					"when": "viewItem == psakeTask",
 					"group": "navigation"
 				}
+			],
+			"commandPalette": [
+				{
+					"command": "psake.runTask",
+					"when": "false"
+				},
+				{
+					"command": "psake.openTaskDefinition",
+					"when": "false"
+				}
 			]
 		},
 		"configuration": {

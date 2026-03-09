@@ -22,12 +22,10 @@ Task Build -Depends Clean {
     Push-Location $ProjectRoot
     try {
         Write-Host 'Building extension (esbuild)...' -ForegroundColor Cyan
-        node esbuild.mjs --production
-        if ($LASTEXITCODE -ne 0) { throw 'esbuild failed' }
+        Exec { npm run build }
 
         Write-Host 'Type-checking source...' -ForegroundColor Cyan
-        npx tsc --noEmit
-        if ($LASTEXITCODE -ne 0) { throw 'tsc type check failed' }
+        Exec { npx tsc --noEmit }
     } finally {
         Pop-Location
     }
@@ -37,8 +35,7 @@ Task Test -Depends Build {
     Push-Location $ProjectRoot
     try {
         Write-Host 'Type-checking tests...' -ForegroundColor Cyan
-        npx tsc -p tsconfig.test.json --noEmit
-        if ($LASTEXITCODE -ne 0) { throw 'Test type check failed' }
+        Exec { npx tsc -p tsconfig.test.json --noEmit }
     } finally {
         Pop-Location
     }
@@ -52,8 +49,7 @@ Task Package -Depends Test {
         }
 
         Write-Host 'Packaging VSIX...' -ForegroundColor Cyan
-        npx @vscode/vsce package --out "$OutDir/"
-        if ($LASTEXITCODE -ne 0) { throw 'vsce package failed' }
+        Exec { npx @vscode/vsce package --out "$OutDir/" }
 
         $vsix = Get-ChildItem -Path $OutDir -Filter '*.vsix' | Select-Object -First 1
         Write-Host "Created: $($vsix.Name)" -ForegroundColor Green

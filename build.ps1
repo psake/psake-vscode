@@ -29,9 +29,9 @@ if ($Bootstrap) {
 Import-Module psake
 
 $psakeParams = @{
-    buildFile = Join-Path $PSScriptRoot 'psake.ps1'
-    taskList  = $Task
-    nologo    = $true
+    buildFile = Join-Path $PSScriptRoot 'psakefile.ps1'
+    taskList = $Task
+    nologo = $true
 }
 
 Invoke-psake @psakeParams

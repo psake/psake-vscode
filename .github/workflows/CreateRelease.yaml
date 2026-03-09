@@ -59,6 +59,10 @@ jobs:
               echo "title=v$version" >> $env:GITHUB_OUTPUT
               "Release v$version" | Out-File -FilePath release_body.md -Encoding utf8
           }
+          # Output the file path for later steps
+          Get-ChildItem -Path ./out/*.vsix | ForEach-Object {
+              echo "asset_path=$($_.FullName)" >> $env:GITHUB_OUTPUT
+          }
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -66,12 +70,12 @@ jobs:
           tag_name: ${{ steps.release_meta.outputs.tag }}
           name: ${{ steps.release_meta.outputs.title }}
           body_path: release_body.md
-          files: out/*.vsix
+          files: ${{ steps.release_meta.outputs.asset_path }}
           generate_release_notes: false
 
       - name: Publish to VS Code Marketplace
         uses: HaaLeo/publish-vscode-extension@v2
         with:
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          extensionFile: out/*.vsix
+          extensionFile: ${{ steps.release_meta.outputs.asset_path }}
           registryUrl: https://marketplace.visualstudio.com

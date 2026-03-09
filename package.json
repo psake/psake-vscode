@@ -30,7 +30,8 @@
 		"Other"
 	],
 	"activationEvents": [
-		"workspaceContains:**/psakefile.ps1"
+		"workspaceContains:**/psakefile.ps1",
+		"onTaskType:psake"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
@@ -130,6 +131,7 @@
 		"build": "node esbuild.mjs",
 		"watch": "node esbuild.mjs --watch",
 		"compile-tests": "tsc -p tsconfig.test.json",
+		"pretest": "npm run compile-tests && node esbuild.mjs",
 		"test": "node ./dist/test/runTest.js",
 		"package": "vsce package"
 	},

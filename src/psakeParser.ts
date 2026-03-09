@@ -49,8 +49,6 @@ export function parsePsakeFile(content: string): PsakeTaskInfo[] {
 export async function findPsakeFiles(): Promise<vscode.Uri[]> {
     const config = vscode.workspace.getConfiguration('psake');
     const buildFileName: string = config.get('buildFile') ?? 'psakefile.ps1';
-    // Case-insensitive glob — VS Code's findFiles is case-sensitive on Linux,
-    // so we search for both cases of the first letter.
     const pattern = `**/${buildFileName}`;
     return vscode.workspace.findFiles(pattern, '**/node_modules/**');
 }

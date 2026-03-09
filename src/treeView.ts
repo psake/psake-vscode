@@ -82,10 +82,24 @@ export class PsakeTreeDataProvider implements vscode.TreeDataProvider<PsakeTreeI
     private cache = new Map<string, { uri: vscode.Uri; folder: vscode.WorkspaceFolder; tasks: PsakeTaskInfo[] }>();
     private loaded = false;
 
+    private watcherDisposables: vscode.Disposable[] = [];
+
     constructor(watcher: vscode.FileSystemWatcher) {
-        watcher.onDidChange(() => this.refresh());
-        watcher.onDidCreate(() => this.refresh());
-        watcher.onDidDelete(() => this.refresh());
+        this.bindWatcher(watcher);
+    }
+
+    setWatcher(watcher: vscode.FileSystemWatcher): void {
+        this.watcherDisposables.forEach(d => d.dispose());
+        this.watcherDisposables = [];
+        this.bindWatcher(watcher);
+    }
+
+    private bindWatcher(watcher: vscode.FileSystemWatcher): void {
+        this.watcherDisposables.push(
+            watcher.onDidChange(() => this.refresh()),
+            watcher.onDidCreate(() => this.refresh()),
+            watcher.onDidDelete(() => this.refresh()),
+        );
     }
 
     refresh(): void {
@@ -106,7 +120,6 @@ export class PsakeTreeDataProvider implements vscode.TreeDataProvider<PsakeTreeI
             for (const entry of this.cache.values()) {
                 items.push(new PsakeBuildFileItem(entry.uri, entry.folder));
             }
-            await vscode.commands.executeCommand('setContext', 'psake:hasTaskFile', items.length > 0);
             return items;
         }
 

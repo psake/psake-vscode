@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as childProcess from 'child_process';
 import { findPsakeFiles, parsePsakeFile } from './psakeParser.js';
 import { TASK_TYPE } from './constants.js';
 import { logError } from './log.js';
@@ -14,17 +15,36 @@ export interface PsakeTaskDefinition extends vscode.TaskDefinition {
 
 export class PsakeTaskProvider implements vscode.TaskProvider {
     private cachedTasks: vscode.Task[] | undefined;
+    private watcherDisposables: vscode.Disposable[] = [];
+    private detectedExecutable: string | undefined;
 
     constructor(watcher: vscode.FileSystemWatcher) {
-        watcher.onDidChange(() => { this.cachedTasks = undefined; });
-        watcher.onDidCreate(() => { this.cachedTasks = undefined; });
-        watcher.onDidDelete(() => { this.cachedTasks = undefined; });
+        this.bindWatcher(watcher);
+    }
+
+    setWatcher(watcher: vscode.FileSystemWatcher): void {
+        this.watcherDisposables.forEach(d => d.dispose());
+        this.watcherDisposables = [];
+        this.cachedTasks = undefined;
+        this.bindWatcher(watcher);
+    }
+
+    private bindWatcher(watcher: vscode.FileSystemWatcher): void {
+        const invalidate = (): void => { this.cachedTasks = undefined; };
+        this.watcherDisposables.push(
+            watcher.onDidChange(invalidate),
+            watcher.onDidCreate(invalidate),
+            watcher.onDidDelete(invalidate),
+        );
     }
 
     async provideTasks(): Promise<vscode.Task[]> {
         if (this.cachedTasks) {
             return this.cachedTasks;
         }
+        // Detect the PowerShell executable before building tasks so the
+        // cached result is available for buildTask (which is synchronous).
+        await this.detectPowerShellExecutable();
         this.cachedTasks = await this.detectTasks();
         return this.cachedTasks;
     }
@@ -42,7 +62,6 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
 
         const scope = task.scope;
         if (!scope || typeof scope === 'number') {
-            // scope is TaskScope.Global or TaskScope.Workspace (numeric enum) — no folder
             return undefined;
         }
 
@@ -58,6 +77,47 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         folder: vscode.WorkspaceFolder
     ): vscode.Task {
         return this.buildTask(def as PsakeTaskDefinition, folder);
+    }
+
+    // -------------------------------------------------------------------------
+    // PowerShell executable detection
+    // -------------------------------------------------------------------------
+
+    /**
+     * Detects which PowerShell executable is available on the system.
+     * Prefers pwsh (PowerShell 7+), falls back to powershell (Windows PowerShell 5.1).
+     * Caches the result for the lifetime of the provider.
+     */
+    private async detectPowerShellExecutable(): Promise<string> {
+        if (this.detectedExecutable) {
+            return this.detectedExecutable;
+        }
+
+        const candidates = ['pwsh', 'powershell'];
+        for (const exe of candidates) {
+            if (await this.testExecutable(exe)) {
+                this.detectedExecutable = exe;
+                return exe;
+            }
+        }
+
+        // Fall back to pwsh and let the error surface when the task runs
+        return 'pwsh';
+    }
+
+    private testExecutable(executable: string): Promise<boolean> {
+        return new Promise<boolean>(resolve => {
+            const ps = childProcess.spawn(
+                executable,
+                ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'Write-Host "OK"'],
+                { shell: true }
+            );
+
+            let hasOutput = false;
+            ps.stdout.on('data', () => { hasOutput = true; });
+            ps.on('close', (code: number) => resolve(code === 0 && hasOutput));
+            ps.on('error', () => resolve(false));
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -109,9 +169,11 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         const defaultFile: string = config.get('buildFile') ?? 'psakefile.ps1';
         const buildFile = def.file ?? defaultFile;
 
-        // Invoke-psake runs via PowerShell. Use the PowerShell extension's
-        // terminal profile when available; otherwise fall back to pwsh/powershell.
         const command = buildInvokePsakeCommand(buildFile, def.task);
+
+        // Use the detected executable asynchronously; fall back to pwsh
+        // if detection hasn't completed yet (resolveTask is sync).
+        const executable = this.detectedExecutable ?? 'pwsh';
 
         const task = new vscode.Task(
             def,
@@ -119,10 +181,9 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
             def.task,
             'psake',
             new vscode.ShellExecution(command, {
-                executable: 'pwsh',
+                executable,
                 shellArgs: ['-NoProfile', '-Command'],
             }),
-            // Use the PowerShell problem matcher if installed, otherwise none
             []
         );
 
@@ -137,7 +198,6 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
 }
 
 function buildInvokePsakeCommand(buildFile: string, taskName: string): string {
-    // Quote the file path in case it contains spaces
     const escapedFile = buildFile.replace(/'/g, "''");
     const escapedTask = taskName.replace(/'/g, "''");
     return `Invoke-psake -buildFile '${escapedFile}' -taskList '${escapedTask}'`;

@@ -2,6 +2,13 @@ import * as vscode from 'vscode';
 import { PsakeTaskProvider } from './taskProvider.js';
 import { PsakeTreeDataProvider } from './treeView.js';
 import { installBuildFileCommand } from './scaffoldCommand.js';
+import { findPsakeFiles } from './psakeParser.js';
+
+function getBuildFilePattern(): string {
+    const config = vscode.workspace.getConfiguration('psake');
+    const buildFile: string = config.get('buildFile') ?? 'psakefile.ps1';
+    return `**/${buildFile}`;
+}
 
 export function activate(context: vscode.ExtensionContext): void {
     // Register the scaffold command (available even without a psakefile)
@@ -14,8 +21,8 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
     }
 
-    // Set up shared file watcher for psakefile changes
-    const watcher = vscode.workspace.createFileSystemWatcher('**/psakefile.ps1');
+    // Set up file watcher using the configured build file name
+    let watcher = vscode.workspace.createFileSystemWatcher(getBuildFilePattern());
     context.subscriptions.push(watcher);
 
     // Tree View
@@ -30,6 +37,24 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.tasks.registerTaskProvider('psake', taskProvider)
     );
 
+    // Set the hasTaskFile context key eagerly so the tree view appears
+    void updateHasTaskFileContext();
+
+    watcher.onDidCreate(() => void updateHasTaskFileContext());
+    watcher.onDidDelete(() => void updateHasTaskFileContext());
+
+    // Re-create the watcher when the build file setting changes
+    vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('psake.buildFile')) {
+            watcher.dispose();
+            watcher = vscode.workspace.createFileSystemWatcher(getBuildFilePattern());
+            treeProvider.setWatcher(watcher);
+            taskProvider.setWatcher(watcher);
+            treeProvider.refresh();
+            void updateHasTaskFileContext();
+        }
+    }, undefined, context.subscriptions);
+
     // Tree view commands
     context.subscriptions.push(
         vscode.commands.registerCommand('psake.refreshTasks', () => {
@@ -41,7 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 return;
             }
             const def: vscode.TaskDefinition = { type: 'psake', task: item.taskName, file: item.buildFile };
-            const resolved = await taskProvider.resolveTaskFromDefinition(def, item.workspaceFolder);
+            const resolved = taskProvider.resolveTaskFromDefinition(def, item.workspaceFolder);
             if (resolved) {
                 await vscode.tasks.executeTask(resolved);
             }
@@ -58,6 +83,11 @@ export function activate(context: vscode.ExtensionContext): void {
             editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
         })
     );
+}
+
+async function updateHasTaskFileContext(): Promise<void> {
+    const files = await findPsakeFiles();
+    await vscode.commands.executeCommand('setContext', 'psake:hasTaskFile', files.length > 0);
 }
 
 export function deactivate(): void {

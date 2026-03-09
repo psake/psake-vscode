@@ -1,0 +1,77 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Package and Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build extension (production)
+        run: node esbuild.mjs --production
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Package VSIX
+        run: |
+          mkdir -p out
+          npx @vscode/vsce package --out ./out/
+
+      - name: Extract release metadata
+        id: release_meta
+        shell: pwsh
+        run: |
+          # Read version from package.json
+          $pkg = Get-Content -Raw package.json | ConvertFrom-Json
+          $version = $pkg.version
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "tag=v$version" >> $env:GITHUB_OUTPUT
+
+          # Extract latest changelog entry
+          $changelog = Get-Content CHANGELOG.md -Raw
+          # Match the first ## [x.y.z] section and grab its body
+          if ($changelog -match '(?ms)^## \[([^\]]+)\]\s*\r?\n(.*?)(?=^## |\z)') {
+              $title = $Matches[1]
+              $body = $Matches[2].Trim()
+              echo "title=$title" >> $env:GITHUB_OUTPUT
+
+              # Write body to a file for multi-line output
+              $body | Out-File -FilePath release_body.md -Encoding utf8
+          } else {
+              echo "title=v$version" >> $env:GITHUB_OUTPUT
+              "Release v$version" | Out-File -FilePath release_body.md -Encoding utf8
+          }
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_meta.outputs.tag }}
+          name: ${{ steps.release_meta.outputs.title }}
+          body_path: release_body.md
+          files: out/*.vsix
+          generate_release_notes: false
+
+      - name: Publish to VS Code Marketplace
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
+          extensionFile: out/*.vsix
+          registryUrl: https://marketplace.visualstudio.com

@@ -136,6 +136,16 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Enable automatic detection of psake tasks from the build file."
+				},
+				"psake.buildScript": {
+					"type": "string",
+					"default": "",
+					"description": "Path to a wrapper build script (e.g., build.ps1) relative to the workspace root. When empty, the extension auto-detects build.ps1 in the workspace root. Set to \"none\" to disable build script usage and call Invoke-psake directly."
+				},
+				"psake.buildScriptTaskParameter": {
+					"type": "string",
+					"default": "Task",
+					"description": "The parameter name on the build script that accepts the task name (e.g., \"Task\" for -Task <name>)."
 				}
 			}
 		}

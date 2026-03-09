@@ -17,6 +17,8 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
     private cachedTasks: vscode.Task[] | undefined;
     private watcherDisposables: vscode.Disposable[] = [];
     private detectedExecutable: string | undefined;
+    /** Cached build script path per workspace folder URI */
+    private buildScriptCache = new Map<string, string | undefined>();
 
     constructor(watcher: vscode.FileSystemWatcher) {
         this.bindWatcher(watcher);
@@ -30,7 +32,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
     }
 
     private bindWatcher(watcher: vscode.FileSystemWatcher): void {
-        const invalidate = (): void => { this.cachedTasks = undefined; };
+        const invalidate = (): void => { this.cachedTasks = undefined; this.buildScriptCache.clear(); };
         this.watcherDisposables.push(
             watcher.onDidChange(invalidate),
             watcher.onDidCreate(invalidate),
@@ -54,7 +56,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
      * tasks.json — e.g. { "type": "psake", "task": "Build" }.
      * We fill in the ShellExecution so the task is runnable.
      */
-    resolveTask(task: vscode.Task): vscode.Task | undefined {
+    async resolveTask(task: vscode.Task): Promise<vscode.Task | undefined> {
         const def = task.definition as PsakeTaskDefinition;
         if (!def.task) {
             return undefined;
@@ -65,18 +67,21 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
             return undefined;
         }
 
-        return this.buildTask(def, scope as vscode.WorkspaceFolder);
+        const folder = scope as vscode.WorkspaceFolder;
+        const buildScript = await this.resolveBuildScript(folder);
+        return this.buildTask(def, folder, undefined, buildScript);
     }
 
     /**
      * Public helper used by the runTask command so it can execute tasks
      * created from tree view items without going through the full provider cycle.
      */
-    resolveTaskFromDefinition(
+    async resolveTaskFromDefinition(
         def: vscode.TaskDefinition,
         folder: vscode.WorkspaceFolder
-    ): vscode.Task {
-        return this.buildTask(def as PsakeTaskDefinition, folder);
+    ): Promise<vscode.Task> {
+        const buildScript = await this.resolveBuildScript(folder);
+        return this.buildTask(def as PsakeTaskDefinition, folder, undefined, buildScript);
     }
 
     // -------------------------------------------------------------------------
@@ -121,6 +126,50 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
     }
 
     // -------------------------------------------------------------------------
+    // Build script detection
+    // -------------------------------------------------------------------------
+
+    /**
+     * Resolves the build script path for a workspace folder.
+     * Returns the relative path to the script, or undefined if tasks should
+     * use Invoke-psake directly.
+     *
+     * Resolution order:
+     * 1. `psake.buildScript` set to "none" → no build script
+     * 2. `psake.buildScript` set to a path → use that path
+     * 3. `psake.buildScript` empty → auto-detect build.ps1 in workspace root
+     */
+    private async resolveBuildScript(folder: vscode.WorkspaceFolder): Promise<string | undefined> {
+        const key = folder.uri.toString();
+        if (this.buildScriptCache.has(key)) {
+            return this.buildScriptCache.get(key);
+        }
+
+        const config = vscode.workspace.getConfiguration('psake', folder);
+        const configured: string = config.get('buildScript') ?? '';
+
+        let result: string | undefined;
+
+        if (configured.toLowerCase() === 'none') {
+            result = undefined;
+        } else if (configured) {
+            result = configured;
+        } else {
+            // Auto-detect build.ps1 in workspace root
+            const buildPs1 = vscode.Uri.joinPath(folder.uri, 'build.ps1');
+            try {
+                await vscode.workspace.fs.stat(buildPs1);
+                result = 'build.ps1';
+            } catch {
+                result = undefined;
+            }
+        }
+
+        this.buildScriptCache.set(key, result);
+        return result;
+    }
+
+    // -------------------------------------------------------------------------
 
     private async detectTasks(): Promise<vscode.Task[]> {
         const config = vscode.workspace.getConfiguration('psake');
@@ -132,28 +181,41 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         const uris = await findPsakeFiles();
         const tasks: vscode.Task[] = [];
 
+        // Group URIs by workspace folder so we resolve the build script once per folder
+        const folderMap = new Map<string, { folder: vscode.WorkspaceFolder; uris: vscode.Uri[] }>();
         for (const uri of uris) {
             const folder = vscode.workspace.getWorkspaceFolder(uri);
             if (!folder) {
                 continue;
             }
+            const key = folder.uri.toString();
+            if (!folderMap.has(key)) {
+                folderMap.set(key, { folder, uris: [] });
+            }
+            folderMap.get(key)!.uris.push(uri);
+        }
 
-            try {
-                const bytes = await vscode.workspace.fs.readFile(uri);
-                const content = Buffer.from(bytes).toString('utf8');
-                const psakeTaskInfos = parsePsakeFile(content);
-                const relativeFile = path.relative(folder.uri.fsPath, uri.fsPath);
+        for (const { folder, uris: folderUris } of folderMap.values()) {
+            const buildScript = await this.resolveBuildScript(folder);
 
-                for (const info of psakeTaskInfos) {
-                    const def: PsakeTaskDefinition = {
-                        type: TASK_TYPE,
-                        task: info.name,
-                        file: relativeFile,
-                    };
-                    tasks.push(this.buildTask(def, folder, info.description));
+            for (const uri of folderUris) {
+                try {
+                    const bytes = await vscode.workspace.fs.readFile(uri);
+                    const content = Buffer.from(bytes).toString('utf8');
+                    const psakeTaskInfos = parsePsakeFile(content);
+                    const relativeFile = path.relative(folder.uri.fsPath, uri.fsPath);
+
+                    for (const info of psakeTaskInfos) {
+                        const def: PsakeTaskDefinition = {
+                            type: TASK_TYPE,
+                            task: info.name,
+                            file: relativeFile,
+                        };
+                        tasks.push(this.buildTask(def, folder, info.description, buildScript));
+                    }
+                } catch (err) {
+                    logError(err, false);
                 }
-            } catch (err) {
-                logError(err, false);
             }
         }
 
@@ -163,13 +225,16 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
     private buildTask(
         def: PsakeTaskDefinition,
         folder: vscode.WorkspaceFolder,
-        description?: string
+        description?: string,
+        buildScript?: string
     ): vscode.Task {
-        const config = vscode.workspace.getConfiguration('psake');
+        const config = vscode.workspace.getConfiguration('psake', folder);
         const defaultFile: string = config.get('buildFile') ?? 'psakefile.ps1';
         const buildFile = def.file ?? defaultFile;
 
-        const command = buildInvokePsakeCommand(buildFile, def.task);
+        const command = buildScript
+            ? buildBuildScriptCommand(buildScript, def.task, config.get('buildScriptTaskParameter') ?? 'Task')
+            : buildInvokePsakeCommand(buildFile, def.task);
 
         // Use the detected executable asynchronously; fall back to pwsh
         // if detection hasn't completed yet (resolveTask is sync).
@@ -201,4 +266,11 @@ function buildInvokePsakeCommand(buildFile: string, taskName: string): string {
     const escapedFile = buildFile.replace(/'/g, "''");
     const escapedTask = taskName.replace(/'/g, "''");
     return `Invoke-psake -buildFile '${escapedFile}' -taskList '${escapedTask}'`;
+}
+
+function buildBuildScriptCommand(scriptPath: string, taskName: string, parameterName: string): string {
+    const escapedScript = scriptPath.replace(/'/g, "''");
+    const escapedTask = taskName.replace(/'/g, "''");
+    const escapedParam = parameterName.replace(/^-/, '');
+    return `./'${escapedScript}' -${escapedParam} '${escapedTask}'`;
 }

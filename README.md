@@ -32,6 +32,16 @@ You can also reference psake tasks in your `tasks.json`:
 }
 ```
 
+### Build Script Support
+
+Most psake projects use a wrapper script (typically `build.ps1`) as the entry point. The extension auto-detects `build.ps1` in the workspace root and runs tasks through it instead of calling `Invoke-psake` directly:
+
+```
+.\build.ps1 -Task Build
+```
+
+The parameter name defaults to `-Task` but is configurable via `psake.buildScriptTaskParameter`. If your project uses a different wrapper script path, set `psake.buildScript`. To disable build script detection and always call `Invoke-psake` directly, set `psake.buildScript` to `"none"`.
+
 ### psake Tasks Explorer
 
 A **psake Tasks** panel appears in the Explorer sidebar when a `psakefile.ps1` is found in your workspace. It shows all tasks with their descriptions and dependencies. Clicking a task navigates to its definition in the file; the inline play button runs the task.
@@ -86,6 +96,8 @@ Type `psake` + `Ctrl+Space` in a PowerShell file to access the following snippet
 |---------|---------|-------------|
 | `psake.buildFile` | `psakefile.ps1` | Default build file name used for scaffolding and task discovery |
 | `psake.taskProvider.enabled` | `true` | Enable or disable automatic task detection |
+| `psake.buildScript` | `""` (auto-detect) | Path to a wrapper build script (e.g., `build.ps1`). When empty, auto-detects `build.ps1` in the workspace root. Set to `"none"` to always use `Invoke-psake` directly. |
+| `psake.buildScriptTaskParameter` | `Task` | The parameter name on the build script that accepts the task name |
 
 ---
 

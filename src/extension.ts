@@ -80,6 +80,10 @@ export function activate(context: vscode.ExtensionContext): void {
             treeProvider.refresh();
             void updateHasTaskFileContext();
         }
+        if (e.affectsConfiguration('psake.buildScript') || e.affectsConfiguration('psake.buildScriptTaskParameter')) {
+            // Invalidate cached tasks so the new build script setting takes effect
+            taskProvider.setWatcher(watcher);
+        }
     }, undefined, context.subscriptions);
 
     // Tree view commands
@@ -93,10 +97,8 @@ export function activate(context: vscode.ExtensionContext): void {
                 return;
             }
             const def: vscode.TaskDefinition = { type: 'psake', task: item.taskName, file: item.buildFile };
-            const resolved = taskProvider.resolveTaskFromDefinition(def, item.workspaceFolder);
-            if (resolved) {
-                await vscode.tasks.executeTask(resolved);
-            }
+            const resolved = await taskProvider.resolveTaskFromDefinition(def, item.workspaceFolder);
+            await vscode.tasks.executeTask(resolved);
         }),
 
         vscode.commands.registerCommand('psake.openTaskDefinition', async (item?: { buildFileUri: vscode.Uri; line: number }) => {

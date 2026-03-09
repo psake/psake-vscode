@@ -12,3 +12,5 @@ PLAN.md
 **/*.map
 **/*.ts
 !dist/extension.js
+psake.ps1
+build.ps1

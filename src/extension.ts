@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { PsakeTaskProvider } from './taskProvider.js';
 import { PsakeTreeDataProvider } from './treeView.js';
 import { PsakeTaskCompletionProvider } from './tasksJsonCompletionProvider.js';
+import { PsakeCodeLensProvider } from './codeLensProvider.js';
 import { installBuildFileCommand } from './scaffoldCommand.js';
 import { syncTasksCommand } from './syncTasksCommand.js';
 import { findPsakeFiles } from './psakeParser.js';
@@ -47,6 +48,15 @@ export function activate(context: vscode.ExtensionContext): void {
     const completionProvider = new PsakeTaskCompletionProvider(watcher);
     context.subscriptions.push(
         vscode.languages.registerCompletionItemProvider(tasksJsonSelector, completionProvider, '"')
+    );
+
+    // CodeLens: "▶ Run Task" above each Task declaration in psakefile
+    const codeLensProvider = new PsakeCodeLensProvider(watcher);
+    context.subscriptions.push(
+        vscode.languages.registerCodeLensProvider(
+            { language: 'powershell', pattern: getBuildFilePattern() },
+            codeLensProvider
+        )
     );
 
     // Command to sync discovered psake tasks into tasks.json

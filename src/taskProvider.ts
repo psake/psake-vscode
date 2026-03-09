@@ -264,7 +264,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
             []
         );
 
-        task.detail = description ?? `Run psake task '${def.task}'`;
+        task.detail = description || `Run psake task '${def.task}'`;
 
         if (def.task.toLowerCase() === 'default') {
             task.group = vscode.TaskGroup.Build;

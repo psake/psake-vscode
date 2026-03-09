@@ -18,8 +18,8 @@
 		"url": "https://github.com/psake/psake-vscode"
 	},
 	"galleryBanner": {
-		"color": "#FFE05C",
-		"theme": "light"
+		"color": "#96BC4F",
+		"theme": "dark"
 	},
 	"engines": {
 		"vscode": "^1.90.0"

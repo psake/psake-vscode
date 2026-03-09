@@ -1,6 +1,6 @@
 Properties {
     $ProjectRoot = $PSScriptRoot
-    $OutDir      = Join-Path $ProjectRoot 'out'
+    $OutDir = Join-Path $ProjectRoot 'out'
 }
 
 Task Default -Depends Build
@@ -71,13 +71,13 @@ Task CI -Depends Package {
 
     if ($env:GITHUB_OUTPUT) {
         "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-        "tag=v$version"    | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+        "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
         # Extract latest changelog section
         $changelog = Get-Content (Join-Path $ProjectRoot 'CHANGELOG.md') -Raw
         if ($changelog -match '(?ms)^## \[([^\]]+)\]\s*\r?\n(.*?)(?=^## |\z)') {
             $title = $Matches[1]
-            $body  = $Matches[2].Trim()
+            $body = $Matches[2].Trim()
             "title=$title" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
             $body | Out-File -FilePath (Join-Path $ProjectRoot 'release_body.md') -Encoding utf8
         }

@@ -31,7 +31,8 @@
 	],
 	"activationEvents": [
 		"workspaceContains:**/psakefile.ps1",
-		"onTaskType:psake"
+		"onTaskType:psake",
+		"onCommand:psake.buildFile"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {

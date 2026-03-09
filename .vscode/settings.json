@@ -7,5 +7,8 @@
         "**/node_modules": true,
         "dist/": true,
         "out/": true
-    }
+    },
+    "cSpell.words": [
+        "psake"
+    ]
 }

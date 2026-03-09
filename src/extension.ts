@@ -80,9 +80,16 @@ export function activate(context: vscode.ExtensionContext): void {
             treeProvider.refresh();
             void updateHasTaskFileContext();
         }
-        if (e.affectsConfiguration('psake.buildScript') || e.affectsConfiguration('psake.buildScriptTaskParameter')) {
-            // Invalidate cached tasks so the new build script setting takes effect
+        if (e.affectsConfiguration('psake.buildScript') ||
+            e.affectsConfiguration('psake.buildScriptTaskParameter') ||
+            e.affectsConfiguration('psake.powershellExecutable') ||
+            e.affectsConfiguration('psake.shellArgs') ||
+            e.affectsConfiguration('psake.invokeParameters')) {
+            // Invalidate cached tasks so the new settings take effect
             taskProvider.setWatcher(watcher);
+        }
+        if (e.affectsConfiguration('psake.codeLens.enabled')) {
+            codeLensProvider.refresh();
         }
     }, undefined, context.subscriptions);
 

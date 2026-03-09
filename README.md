@@ -40,7 +40,7 @@ Most psake projects use a wrapper script (typically `build.ps1`) as the entry po
 .\build.ps1 -Task Build
 ```
 
-The parameter name defaults to `-Task` but is configurable via `psake.buildScriptTaskParameter`. If your project uses a different wrapper script path, set `psake.buildScript`. To disable build script detection and always call `Invoke-psake` directly, set `psake.buildScript` to `"none"`.
+The parameter name defaults to `-Task` but is configurable via `psake.buildScriptTaskParameter`. Additional parameters can be appended to every build script call via `psake.buildScriptParameters` (e.g., `-Configuration Release`). If your project uses a different wrapper script path, set `psake.buildScript`. To disable build script detection and always call `Invoke-psake` directly, set `psake.buildScript` to `"none"`.
 
 ### psake Tasks Explorer
 
@@ -96,8 +96,13 @@ Type `psake` + `Ctrl+Space` in a PowerShell file to access the following snippet
 |---------|---------|-------------|
 | `psake.buildFile` | `psakefile.ps1` | Default build file name used for scaffolding and task discovery |
 | `psake.taskProvider.enabled` | `true` | Enable or disable automatic task detection |
+| `psake.codeLens.enabled` | `true` | Show **▶ Run Task** CodeLens above each task declaration in the build file |
 | `psake.buildScript` | `""` (auto-detect) | Path to a wrapper build script (e.g., `build.ps1`). When empty, auto-detects `build.ps1` in the workspace root. Set to `"none"` to always use `Invoke-psake` directly. |
 | `psake.buildScriptTaskParameter` | `Task` | The parameter name on the build script that accepts the task name |
+| `psake.buildScriptParameters` | `""` | Extra parameters appended to the build script call when a wrapper is used (e.g., `-Configuration Release -Clean`) |
+| `psake.invokeParameters` | `""` | Extra parameters appended to the `Invoke-psake` call when no wrapper is used (e.g., `-nologo -properties @{Configuration='Release'}`) |
+| `psake.powershellExecutable` | `""` (auto-detect) | PowerShell executable to use (e.g., `pwsh`, `powershell`, or a full path). When empty, auto-detects `pwsh` then `powershell`. |
+| `psake.shellArgs` | `["-NoProfile"]` | Arguments passed to the PowerShell executable before `-Command` (e.g., add `"-ExecutionPolicy", "Bypass"` for restricted environments) |
 
 ---
 

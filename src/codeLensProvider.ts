@@ -12,7 +12,15 @@ export class PsakeCodeLensProvider implements vscode.CodeLensProvider {
         watcher.onDidDelete(() => this._onDidChangeCodeLenses.fire());
     }
 
+    refresh(): void {
+        this._onDidChangeCodeLenses.fire();
+    }
+
     async provideCodeLenses(document: vscode.TextDocument): Promise<vscode.CodeLens[]> {
+        const config = vscode.workspace.getConfiguration('psake');
+        if (config.get('codeLens.enabled') === false) {
+            return [];
+        }
         if (!this.isPsakeFile(document)) {
             return [];
         }

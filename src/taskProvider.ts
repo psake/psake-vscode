@@ -28,6 +28,8 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         this.watcherDisposables.forEach(d => d.dispose());
         this.watcherDisposables = [];
         this.cachedTasks = undefined;
+        this.buildScriptCache.clear();
+        this.detectedExecutable = undefined;
         this.bindWatcher(watcher);
     }
 
@@ -96,6 +98,13 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
     private async detectPowerShellExecutable(): Promise<string> {
         if (this.detectedExecutable) {
             return this.detectedExecutable;
+        }
+
+        const config = vscode.workspace.getConfiguration('psake');
+        const configured: string = config.get('powershellExecutable') ?? '';
+        if (configured) {
+            this.detectedExecutable = configured;
+            return configured;
         }
 
         const candidates = ['pwsh', 'powershell'];
@@ -232,13 +241,16 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         const defaultFile: string = config.get('buildFile') ?? 'psakefile.ps1';
         const buildFile = def.file ?? defaultFile;
 
+        const extraInvokeParams: string = config.get('invokeParameters') ?? '';
+        const extraScriptParams: string = config.get('buildScriptParameters') ?? '';
         const command = buildScript
-            ? buildBuildScriptCommand(buildScript, def.task, config.get('buildScriptTaskParameter') ?? 'Task')
-            : buildInvokePsakeCommand(buildFile, def.task);
+            ? buildBuildScriptCommand(buildScript, def.task, config.get('buildScriptTaskParameter') ?? 'Task', extraScriptParams)
+            : buildInvokePsakeCommand(buildFile, def.task, extraInvokeParams);
 
         // Use the detected executable asynchronously; fall back to pwsh
         // if detection hasn't completed yet (resolveTask is sync).
         const executable = this.detectedExecutable ?? 'pwsh';
+        const extraShellArgs: string[] = config.get('shellArgs') ?? ['-NoProfile'];
 
         const task = new vscode.Task(
             def,
@@ -247,12 +259,12 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
             'psake',
             new vscode.ShellExecution(command, {
                 executable,
-                shellArgs: ['-NoProfile', '-Command'],
+                shellArgs: [...extraShellArgs, '-Command'],
             }),
             []
         );
 
-        task.detail = description ?? `Run psake task '${def.task}'`;
+        task.detail = description || `Run psake task '${def.task}'`;
 
         if (def.task.toLowerCase() === 'default') {
             task.group = vscode.TaskGroup.Build;
@@ -262,15 +274,17 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
     }
 }
 
-function buildInvokePsakeCommand(buildFile: string, taskName: string): string {
+function buildInvokePsakeCommand(buildFile: string, taskName: string, extraParams?: string): string {
     const escapedFile = buildFile.replace(/'/g, "''");
     const escapedTask = taskName.replace(/'/g, "''");
-    return `Invoke-psake -buildFile '${escapedFile}' -taskList '${escapedTask}'`;
+    const extra = extraParams ? ` ${extraParams}` : '';
+    return `Invoke-psake -buildFile '${escapedFile}' -taskList '${escapedTask}'${extra}`;
 }
 
-function buildBuildScriptCommand(scriptPath: string, taskName: string, parameterName: string): string {
+function buildBuildScriptCommand(scriptPath: string, taskName: string, parameterName: string, extraParams?: string): string {
     const escapedScript = scriptPath.replace(/'/g, "''");
     const escapedTask = taskName.replace(/'/g, "''");
     const escapedParam = parameterName.replace(/^-/, '');
-    return `./'${escapedScript}' -${escapedParam} '${escapedTask}'`;
+    const extra = extraParams ? ` ${extraParams}` : '';
+    return `./'${escapedScript}' -${escapedParam} '${escapedTask}'${extra}`;
 }

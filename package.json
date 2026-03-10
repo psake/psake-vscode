@@ -3,11 +3,12 @@
 	"displayName": "psake",
 	"publisher": "psake",
 	"description": "Psake build script language support for Visual Studio Code.",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"icon": "images/psake.png",
 	"private": true,
 	"author": {
-		"name": "psake"
+		"name": "psake",
+		"url": "https://psake.dev"
 	},
 	"bugs": {
 		"url": "https://github.com/psake/psake-vscode/issues"
@@ -18,7 +19,7 @@
 		"url": "https://github.com/psake/psake-vscode"
 	},
 	"galleryBanner": {
-		"color": "#96BC4F",
+		"color": "#7E7E7C",
 		"theme": "dark"
 	},
 	"engines": {
@@ -31,8 +32,9 @@
 	],
 	"activationEvents": [
 		"workspaceContains:**/psakefile.ps1",
-		"onTaskType:psake",
-		"onCommand:psake.buildFile"
+		"workspaceContains:**/psake.ps1",
+		"workspaceContains:**/build.ps1",
+		"onTaskType:psake"
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
@@ -147,6 +149,36 @@
 					"type": "string",
 					"default": "Task",
 					"description": "The parameter name on the build script that accepts the task name (e.g., \"Task\" for -Task <name>)."
+				},
+				"psake.codeLens.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show '▶ Run Task' CodeLens above each task declaration in the psake build file."
+				},
+				"psake.powershellExecutable": {
+					"type": "string",
+					"default": "",
+					"description": "Path or name of the PowerShell executable to use when running psake tasks (e.g., \"pwsh\", \"powershell\", or a full path). When empty, the extension auto-detects pwsh or powershell."
+				},
+				"psake.shellArgs": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"-NoProfile"
+					],
+					"description": "Arguments passed to the PowerShell executable before -Command when running psake tasks. The -Command switch is always appended automatically."
+				},
+				"psake.invokeParameters": {
+					"type": "string",
+					"default": "",
+					"description": "Extra parameters appended to the Invoke-psake call when no build script wrapper is used (e.g., \"-nologo -properties @{Configuration='Release'}\")."
+				},
+				"psake.buildScriptParameters": {
+					"type": "string",
+					"default": "",
+					"description": "Extra parameters appended to the build script call when a build script wrapper is used (e.g., \"-Configuration Release -Clean\")."
 				}
 			}
 		}
@@ -171,5 +203,20 @@
 	},
 	"extensionDependencies": [
 		"ms-vscode.PowerShell"
+	],
+	"funding": [
+		{
+			"type": "opencollective",
+			"url": "https://opencollective.com/psake"
+		}
+	],
+	"license": "MIT",
+	"keywords": [
+		"psake",
+		"build",
+		"automation",
+		"powershell",
+		"vscode",
+		"tasks"
 	]
 }

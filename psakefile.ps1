@@ -3,9 +3,9 @@ Properties {
     $OutDir = Join-Path $ProjectRoot 'out'
 }
 
-Task Default -Depends Build
+Task Default -Depends Build -Description 'Default task; runs the full Build pipeline'
 
-Task Clean {
+Task Clean -Description 'Removes the out/ directory and any .vsix files from the project root' {
     if (Test-Path $OutDir) {
         Write-Host "Removing $OutDir" -ForegroundColor Yellow
         Remove-Item -Recurse -Force $OutDir
@@ -18,7 +18,7 @@ Task Clean {
     }
 }
 
-Task Build -Depends Clean {
+Task Build -Depends Clean -Description 'Compiles the extension with esbuild and type-checks the source with tsc' {
     Push-Location $ProjectRoot
     try {
         Write-Host 'Building extension (esbuild)...' -ForegroundColor Cyan
@@ -31,7 +31,7 @@ Task Build -Depends Clean {
     }
 }
 
-Task Test -Depends Build {
+Task Test -Depends Build -Description 'Type-checks the test suite with tsc using tsconfig.test.json' {
     Push-Location $ProjectRoot
     try {
         Write-Host 'Type-checking tests...' -ForegroundColor Cyan
@@ -41,7 +41,7 @@ Task Test -Depends Build {
     }
 }
 
-Task Package -Depends Test {
+Task Package -Depends Test -Description 'Packages the extension into a .vsix file under the out/ directory' {
     Push-Location $ProjectRoot
     try {
         if (-not (Test-Path $OutDir)) {
@@ -58,7 +58,7 @@ Task Package -Depends Test {
     }
 }
 
-Task CI -Depends Package {
+Task CI -Depends Package -Description 'Runs the full pipeline and extracts release metadata (version, tag, changelog) for GitHub Actions' {
     # Extract release metadata for GitHub Actions
     $pkg = Get-Content -Raw (Join-Path $ProjectRoot 'package.json') | ConvertFrom-Json
     $version = $pkg.version

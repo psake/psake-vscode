@@ -63,15 +63,21 @@ jobs:
           Get-ChildItem -Path ./out/*.vsix | ForEach-Object {
               echo "asset_path=$($_.FullName)" >> $env:GITHUB_OUTPUT
           }
-
+      - name: Read and validate changelog (keepachangelog)
+        id: changelog
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_level: warn
+          path: ./CHANGELOG.md
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_meta.outputs.tag }}
-          name: ${{ steps.release_meta.outputs.title }}
-          body_path: release_body.md
+          name: Release ${{ steps.changelog.outputs.version }}
+          body: ${{ steps.changelog.outputs.changes }}
+          prerelease: ${{ steps.changelog.outputs.status == 'prereleased' }}
+          draft: ${{ steps.changelog.outputs.status == 'unreleased' }}
           files: ${{ steps.release_meta.outputs.asset_path }}
-          generate_release_notes: false
 
       - name: Publish to VS Code Marketplace
         uses: HaaLeo/publish-vscode-extension@v2

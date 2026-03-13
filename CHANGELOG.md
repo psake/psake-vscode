@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2] 2026-03-13
+
+### Fixed
+
+- **Case-insensitive file detection**: extension now finds `psakefile.ps1` and `build.ps1` regardless of casing (e.g., `psakeFile.ps1`, `Build.ps1`, `BUILD.ps1`)
+- Updated activation events to include common case variations of psake and build files
+
 ## [1.0.1] 2026-03-09
 
 ### Added

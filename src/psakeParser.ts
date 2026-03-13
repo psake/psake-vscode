@@ -44,12 +44,27 @@ export function parsePsakeFile(content: string): PsakeTaskInfo[] {
 }
 
 /**
+ * Converts a filename to a case-insensitive glob pattern.
+ * Example: "psakefile.ps1" -> "[pP][sS][aA][kK][eE][fF][iI][lL][eE].ps1"
+ */
+function toCaseInsensitivePattern(filename: string): string {
+    return filename.split('').map(char => {
+        if (/[a-zA-Z]/.test(char)) {
+            return `[${char.toLowerCase()}${char.toUpperCase()}]`;
+        }
+        return char;
+    }).join('');
+}
+
+/**
  * Discovers all psakefile.ps1 files in the current workspace.
+ * Uses case-insensitive matching to find files regardless of casing.
  */
 export async function findPsakeFiles(): Promise<vscode.Uri[]> {
     const config = vscode.workspace.getConfiguration('psake');
     const buildFileName: string = config.get('buildFile') ?? 'psakefile.ps1';
-    const pattern = `**/${buildFileName}`;
+    const caseInsensitiveFileName = toCaseInsensitivePattern(buildFileName);
+    const pattern = `**/${caseInsensitiveFileName}`;
     return vscode.workspace.findFiles(pattern, '**/node_modules/**');
 }
 

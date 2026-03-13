@@ -164,11 +164,14 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         } else if (configured) {
             result = configured;
         } else {
-            // Auto-detect build.ps1 in workspace root
-            const buildPs1 = vscode.Uri.joinPath(folder.uri, 'build.ps1');
+            // Auto-detect build.ps1 in workspace root (case-insensitive)
             try {
-                await vscode.workspace.fs.stat(buildPs1);
-                result = 'build.ps1';
+                const files = await vscode.workspace.fs.readDirectory(folder.uri);
+                const buildFile = files.find(([name, type]) => 
+                    type === vscode.FileType.File && 
+                    name.toLowerCase() === 'build.ps1'
+                );
+                result = buildFile ? buildFile[0] : undefined;
             } catch {
                 result = undefined;
             }

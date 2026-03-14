@@ -139,5 +139,12 @@
 			"Assert (${1:condition}) '${2:Assertion failed: description}'"
 		],
 		"description": "Assert a condition is true, failing the build with a message if it is not."
+	},
+	"psake Task (from module)": {
+		"prefix": "psakeTaskFromModule",
+		"body": [
+			"Task ${1:TaskName} -FromModule ${2:ModuleName} -MinimumVersion '${3:0.1.0}'"
+		],
+		"description": "A psake task imported from an external psake module. The task implementation (action and dependencies) is resolved from the named module's psakeFile.ps1 at build time."
 	}
 }

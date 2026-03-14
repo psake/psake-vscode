@@ -3,6 +3,7 @@ import { PsakeTaskProvider } from './taskProvider.js';
 import { PsakeTreeDataProvider } from './treeView.js';
 import { PsakeTaskCompletionProvider } from './tasksJsonCompletionProvider.js';
 import { PsakeCodeLensProvider } from './codeLensProvider.js';
+import { PsakeModuleResolver } from './moduleResolver.js';
 import { installBuildFileCommand } from './scaffoldCommand.js';
 import { syncTasksCommand } from './syncTasksCommand.js';
 import { findPsakeFiles } from './psakeParser.js';
@@ -28,14 +29,17 @@ export function activate(context: vscode.ExtensionContext): void {
     let watcher = vscode.workspace.createFileSystemWatcher(getBuildFilePattern());
     context.subscriptions.push(watcher);
 
+    // Module resolver — shared across tree view, task provider, and completions
+    const resolver = new PsakeModuleResolver();
+
     // Tree View
-    const treeProvider = new PsakeTreeDataProvider(watcher);
+    const treeProvider = new PsakeTreeDataProvider(watcher, resolver);
     context.subscriptions.push(
         vscode.window.registerTreeDataProvider('psakeTasksView', treeProvider)
     );
 
     // Task Provider
-    const taskProvider = new PsakeTaskProvider(watcher);
+    const taskProvider = new PsakeTaskProvider(watcher, resolver);
     context.subscriptions.push(
         vscode.tasks.registerTaskProvider('psake', taskProvider)
     );
@@ -45,13 +49,13 @@ export function activate(context: vscode.ExtensionContext): void {
         language: 'jsonc',
         pattern: '**/.vscode/tasks.json',
     };
-    const completionProvider = new PsakeTaskCompletionProvider(watcher);
+    const completionProvider = new PsakeTaskCompletionProvider(watcher, resolver);
     context.subscriptions.push(
         vscode.languages.registerCompletionItemProvider(tasksJsonSelector, completionProvider, '"')
     );
 
     // CodeLens: "▶ Run Task" above each Task declaration in psakefile
-    const codeLensProvider = new PsakeCodeLensProvider(watcher);
+    const codeLensProvider = new PsakeCodeLensProvider(watcher, resolver);
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider(
             { language: 'powershell', pattern: getBuildFilePattern() },
@@ -96,6 +100,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // Tree view commands
     context.subscriptions.push(
         vscode.commands.registerCommand('psake.refreshTasks', () => {
+            resolver.clearCache();
             treeProvider.refresh();
         }),
 

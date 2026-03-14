@@ -6,6 +6,20 @@ export interface PsakeTaskInfo {
     description: string;
     /** Zero-based line number where the Task declaration begins */
     line: number;
+    /** Module name supplied via the -FromModule parameter (SharedTask parameter set) */
+    fromModule?: string;
+    /** Version constraints for the -FromModule module */
+    requiredVersion?: string;
+    minimumVersion?: string;
+    maximumVersion?: string;
+    lessThanVersion?: string;
+    /**
+     * Populated by the module resolver after attempting to locate the named module.
+     * true  = module found and task metadata merged.
+     * false = module not found or version constraint not satisfied.
+     * undefined = task has no -FromModule, or resolution hasn't been run yet.
+     */
+    moduleResolved?: boolean;
 }
 
 /**
@@ -118,8 +132,13 @@ function parseTaskLine(line: string, lineIndex: number): PsakeTaskInfo | null {
 
     const dependencies = extractDepends(rest);
     const description = extractDescription(rest);
+    const fromModule = extractFromModule(rest) ?? undefined;
+    const requiredVersion = (extractVersionParam(rest, 'RequiredVersion') ?? extractVersionParam(rest, 'Version')) ?? undefined;
+    const minimumVersion = extractVersionParam(rest, 'MinimumVersion') ?? undefined;
+    const maximumVersion = extractVersionParam(rest, 'MaximumVersion') ?? undefined;
+    const lessThanVersion = extractVersionParam(rest, 'LessThanVersion') ?? undefined;
 
-    return { name, dependencies, description, line: lineIndex };
+    return { name, dependencies, description, line: lineIndex, fromModule, requiredVersion, minimumVersion, maximumVersion, lessThanVersion };
 }
 
 /** Matches a possibly-quoted identifier */
@@ -157,4 +176,17 @@ function extractDescription(rest: string): string {
     // -Description "some text" or -Description 'some text'
     const match = rest.match(/-Description\s+["']([^"']*)["']/i);
     return match ? match[1] : '';
+}
+
+function extractFromModule(rest: string): string | null {
+    // -FromModule ModuleName  or  -FromModule 'ModuleName'  or  -FromModule "ModuleName"
+    const match = rest.match(/-FromModule\s+["']?([A-Za-z0-9_.\-]+)["']?/i);
+    return match ? match[1] : null;
+}
+
+function extractVersionParam(rest: string, paramName: string): string | null {
+    // Handles -MinimumVersion '1.2.3', -RequiredVersion "1.2.3", -Version 1.2.3, etc.
+    const escaped = paramName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = rest.match(new RegExp(`-${escaped}\\s+["']?([\\w.]+)["']?`, 'i'));
+    return match ? match[1] : null;
 }

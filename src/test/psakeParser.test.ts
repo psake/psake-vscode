@@ -137,4 +137,85 @@ suite('psakeParser', () => {
             assert.strictEqual(tasks[0].name, 'Real');
         });
     });
+
+    suite('FromModule tasks', () => {
+        test('parses -FromModule parameter', () => {
+            const content = `Task Test -FromModule PowerShellBuild`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.strictEqual(tasks[0].name, 'Test');
+            assert.strictEqual(tasks[0].fromModule, 'PowerShellBuild');
+            assert.strictEqual(tasks[0].minimumVersion, undefined);
+            assert.strictEqual(tasks[0].requiredVersion, undefined);
+        });
+
+        test('parses -FromModule with -minimumVersion', () => {
+            const content = `Task Test -FromModule PowerShellBuild -minimumVersion '0.6.1'`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].fromModule, 'PowerShellBuild');
+            assert.strictEqual(tasks[0].minimumVersion, '0.6.1');
+        });
+
+        test('parses -FromModule with -requiredVersion', () => {
+            const content = `Task Test -FromModule PowerShellBuild -requiredVersion '1.0.0'`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].requiredVersion, '1.0.0');
+            assert.strictEqual(tasks[0].minimumVersion, undefined);
+        });
+
+        test('parses -Version as alias for -requiredVersion', () => {
+            const content = `Task Test -FromModule PowerShellBuild -Version '1.0.0'`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].requiredVersion, '1.0.0');
+        });
+
+        test('parses -maximumVersion', () => {
+            const content = `Task Test -FromModule PowerShellBuild -minimumVersion '0.5.0' -maximumVersion '1.0.0'`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].minimumVersion, '0.5.0');
+            assert.strictEqual(tasks[0].maximumVersion, '1.0.0');
+        });
+
+        test('parses -lessThanVersion', () => {
+            const content = `Task Test -FromModule PowerShellBuild -lessThanVersion '2.0.0'`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].lessThanVersion, '2.0.0');
+        });
+
+        test('parses -FromModule with double-quoted module name', () => {
+            const content = `Task Test -FromModule "PowerShellBuild" -minimumVersion "0.6.1"`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].fromModule, 'PowerShellBuild');
+            assert.strictEqual(tasks[0].minimumVersion, '0.6.1');
+        });
+
+        test('parses -FromModule on continuation lines', () => {
+            const content = [
+                'Task Test `',
+                '    -FromModule PowerShellBuild `',
+                "    -minimumVersion '0.6.1'",
+            ].join('\n');
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.strictEqual(tasks[0].name, 'Test');
+            assert.strictEqual(tasks[0].fromModule, 'PowerShellBuild');
+            assert.strictEqual(tasks[0].minimumVersion, '0.6.1');
+        });
+
+        test('parses -FromModule task with local -Depends', () => {
+            // psake allows a reference task to declare additional local dependencies
+            const content = `Task Test -FromModule PowerShellBuild -Depends LocalSetup -minimumVersion '0.6.1'`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].fromModule, 'PowerShellBuild');
+            assert.deepStrictEqual(tasks[0].dependencies, ['LocalSetup']);
+            assert.strictEqual(tasks[0].minimumVersion, '0.6.1');
+        });
+
+        test('fromModule is undefined on normal tasks', () => {
+            const content = `Task Build -Depends Clean { }`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].fromModule, undefined);
+            assert.strictEqual(tasks[0].minimumVersion, undefined);
+        });
+    });
 });

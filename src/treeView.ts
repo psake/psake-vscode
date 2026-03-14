@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { findPsakeFiles, parsePsakeFile, PsakeTaskInfo } from './psakeParser.js';
+import { PsakeModuleResolver, enrichModuleTasks } from './moduleResolver.js';
 import { logError } from './log.js';
 
 // ---------------------------------------------------------------------------
@@ -43,21 +44,56 @@ export class PsakeTaskItem extends vscode.TreeItem {
         this.taskLine = info.line;
         this.contextValue = 'psakeTask';
 
-        this.description = info.description || (info.dependencies.length > 0
-            ? `depends: ${info.dependencies.join(', ')}`
-            : '');
+        // Description
+        if (info.fromModule) {
+            if (info.moduleResolved === false) {
+                this.description = `⚠ not found: ${info.fromModule}`;
+            } else {
+                const depsStr = info.dependencies.length > 0
+                    ? ` · depends: ${info.dependencies.join(', ')}`
+                    : '';
+                this.description = `from: ${info.fromModule}${depsStr}`;
+            }
+        } else {
+            this.description = info.description || (info.dependencies.length > 0
+                ? `depends: ${info.dependencies.join(', ')}`
+                : '');
+        }
 
-        this.tooltip = new vscode.MarkdownString(
-            [
-                `**${info.name}**`,
-                info.description ? `\n\n${info.description}` : '',
-                info.dependencies.length > 0 ? `\n\n*Depends on:* ${info.dependencies.join(', ')}` : '',
-            ].join('')
-        );
+        // Tooltip
+        const tooltipParts: string[] = [`**${info.name}**`];
+        if (info.description) {
+            tooltipParts.push(`\n\n${info.description}`);
+        }
+        if (info.fromModule) {
+            tooltipParts.push(`\n\n*From module:* \`${info.fromModule}\``);
+            const versionParts: string[] = [];
+            if (info.requiredVersion) { versionParts.push(`version ${info.requiredVersion}`); }
+            if (info.minimumVersion) { versionParts.push(`≥ ${info.minimumVersion}`); }
+            if (info.maximumVersion) { versionParts.push(`≤ ${info.maximumVersion}`); }
+            if (info.lessThanVersion) { versionParts.push(`< ${info.lessThanVersion}`); }
+            if (versionParts.length > 0) {
+                tooltipParts.push(` *(${versionParts.join(', ')})*`);
+            }
+            if (info.moduleResolved === false) {
+                tooltipParts.push(`\n\n⚠ *Module not found or version constraint not satisfied.*`);
+            }
+        }
+        if (info.dependencies.length > 0) {
+            tooltipParts.push(`\n\n*Depends on:* ${info.dependencies.join(', ')}`);
+        }
+        this.tooltip = new vscode.MarkdownString(tooltipParts.join(''));
 
-        this.iconPath = new vscode.ThemeIcon(
-            info.name.toLowerCase() === 'default' ? 'home' : 'play-circle'
-        );
+        // Icon
+        if (info.name.toLowerCase() === 'default') {
+            this.iconPath = new vscode.ThemeIcon('home');
+        } else if (info.fromModule) {
+            this.iconPath = new vscode.ThemeIcon(
+                info.moduleResolved === false ? 'warning' : 'package'
+            );
+        } else {
+            this.iconPath = new vscode.ThemeIcon('play-circle');
+        }
 
         // Clicking a task item opens the file at the task's line
         this.command = {
@@ -81,10 +117,12 @@ export class PsakeTreeDataProvider implements vscode.TreeDataProvider<PsakeTreeI
     /** Cached map of build file URI → parsed tasks */
     private cache = new Map<string, { uri: vscode.Uri; folder: vscode.WorkspaceFolder; tasks: PsakeTaskInfo[] }>();
     private loaded = false;
+    private readonly resolver: PsakeModuleResolver | undefined;
 
     private watcherDisposables: vscode.Disposable[] = [];
 
-    constructor(watcher: vscode.FileSystemWatcher) {
+    constructor(watcher: vscode.FileSystemWatcher, resolver?: PsakeModuleResolver) {
+        this.resolver = resolver;
         this.bindWatcher(watcher);
     }
 
@@ -151,6 +189,9 @@ export class PsakeTreeDataProvider implements vscode.TreeDataProvider<PsakeTreeI
                 const bytes = await vscode.workspace.fs.readFile(uri);
                 const content = Buffer.from(bytes).toString('utf8');
                 const tasks = parsePsakeFile(content);
+                if (this.resolver) {
+                    await enrichModuleTasks(tasks, this.resolver);
+                }
                 this.cache.set(uri.toString(), { uri, folder, tasks });
             } catch (err) {
                 logError(err, false);

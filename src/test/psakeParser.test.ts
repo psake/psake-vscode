@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { parsePsakeFile } from '../psakeParser.js';
+import { parsePsakeFile, parseIncludes } from '../psakeParser.js';
 
 suite('psakeParser', () => {
     suite('parsePsakeFile', () => {
@@ -216,6 +216,87 @@ suite('psakeParser', () => {
             const tasks = parsePsakeFile(content);
             assert.strictEqual(tasks[0].fromModule, undefined);
             assert.strictEqual(tasks[0].minimumVersion, undefined);
+        });
+    });
+
+    suite('parseIncludes', () => {
+        test('parses positional Include', () => {
+            const content = `Include './helpers.ps1'`;
+            const includes = parseIncludes(content);
+            assert.strictEqual(includes.length, 1);
+            assert.strictEqual(includes[0].path, './helpers.ps1');
+            assert.strictEqual(includes[0].isLiteral, false);
+            assert.strictEqual(includes[0].line, 0);
+        });
+
+        test('parses positional Include with double quotes', () => {
+            const content = `Include "./helpers.ps1"`;
+            const includes = parseIncludes(content);
+            assert.strictEqual(includes[0].path, './helpers.ps1');
+        });
+
+        test('parses -Path parameter', () => {
+            const content = `Include -Path './helpers.ps1'`;
+            const includes = parseIncludes(content);
+            assert.strictEqual(includes[0].path, './helpers.ps1');
+            assert.strictEqual(includes[0].isLiteral, false);
+        });
+
+        test('parses -fileNamePathToInclude alias', () => {
+            const content = `Include -fileNamePathToInclude './helpers.ps1'`;
+            const includes = parseIncludes(content);
+            assert.strictEqual(includes[0].path, './helpers.ps1');
+            assert.strictEqual(includes[0].isLiteral, false);
+        });
+
+        test('parses -LiteralPath parameter and sets isLiteral = true', () => {
+            const content = `Include -LiteralPath 'C:\\build\\helpers.ps1'`;
+            const includes = parseIncludes(content);
+            assert.strictEqual(includes[0].path, 'C:\\build\\helpers.ps1');
+            assert.strictEqual(includes[0].isLiteral, true);
+        });
+
+        test('parses multiple Include statements', () => {
+            const content = [
+                `Include './helpers.ps1'`,
+                `Task Build { }`,
+                `Include -Path './tools.ps1'`,
+            ].join('\n');
+            const includes = parseIncludes(content);
+            assert.strictEqual(includes.length, 2);
+            assert.strictEqual(includes[0].path, './helpers.ps1');
+            assert.strictEqual(includes[0].line, 0);
+            assert.strictEqual(includes[1].path, './tools.ps1');
+            assert.strictEqual(includes[1].line, 2);
+        });
+
+        test('parses Include on continuation lines', () => {
+            const content = [
+                'Include `',
+                "    './helpers.ps1'",
+            ].join('\n');
+            const includes = parseIncludes(content);
+            assert.strictEqual(includes.length, 1);
+            assert.strictEqual(includes[0].path, './helpers.ps1');
+        });
+
+        test('ignores comment lines', () => {
+            const content = `# Include './ignored.ps1'\nInclude './real.ps1'`;
+            const includes = parseIncludes(content);
+            assert.strictEqual(includes.length, 1);
+            assert.strictEqual(includes[0].path, './real.ps1');
+        });
+
+        test('returns empty array when no Include statements', () => {
+            const content = `Task Build { }\nTask Clean { }`;
+            assert.deepStrictEqual(parseIncludes(content), []);
+        });
+
+        test('is case-insensitive for the Include keyword', () => {
+            const content = `include './helpers.ps1'`;
+            const includes = parseIncludes(content);
+            assert.strictEqual(includes.length, 1);
+            assert.strictEqual(includes[0].path, './helpers.ps1');
         });
     });
 });

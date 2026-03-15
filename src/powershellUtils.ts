@@ -26,12 +26,40 @@ export async function detectPowerShellExecutable(): Promise<string> {
   return 'pwsh';
 }
 
+/**
+ * Builds a spawn environment where PSModulePath is sourced from the Windows
+ * machine-level registry entry, avoiding the mixture of PS5/PS7 paths that
+ * VS Code may have injected into the process environment.
+ * Falls back to deleting PSModulePath (letting PowerShell self-initialize) if
+ * the registry query fails or the host is not Windows.
+ */
+function buildSpawnEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  if (process.platform === 'win32') {
+    try {
+      const out = childProcess.execSync(
+        'reg query "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" /v PSModulePath',
+        { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+      );
+      const match = out.match(/PSModulePath\s+REG[^\s]*\s+(.+)/i);
+      if (match?.[1]) {
+        // REG_EXPAND_SZ values contain unexpanded %VAR% references — expand them.
+        env['PSModulePath'] = match[1].trim().replace(/%([^%]+)%/g, (_, name) => process.env[name] ?? `%${name}%`);
+        return env;
+      }
+    } catch { /* fall through to delete */ }
+  }
+  delete env['PSModulePath'];
+  return env;
+}
+
 export function testExecutable(executable: string): Promise<boolean> {
   return new Promise<boolean>(resolve => {
+    const env = buildSpawnEnv();
     const ps = childProcess.spawn(
       executable,
       ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'Write-Host "OK"'],
-      { shell: true }
+      { shell: true, env }
     );
 
     let hasOutput = false;
@@ -46,11 +74,12 @@ export function testExecutable(executable: string): Promise<boolean> {
  * Rejects if the process exits with a non-zero code.
  */
 export function runPowerShellScript(executable: string, script: string): Promise<string> {
+  const env = buildSpawnEnv();
   return new Promise<string>((resolve, reject) => {
     const ps = childProcess.spawn(
       executable,
-      ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script],
-      { shell: true }
+      ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+      { shell: true, env }
     );
 
     let stdout = '';

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { findPsakeFiles, parsePsakeFile, PsakeTaskInfo } from './psakeParser.js';
-import { PsakeModuleResolver, enrichModuleTasks } from './moduleResolver.js';
+import { findPsakeFiles, PsakeTaskInfo } from './psakeParser.js';
+import { PsakeModuleResolver, resolveAllTasks } from './moduleResolver.js';
 import { logError } from './log.js';
 
 // ---------------------------------------------------------------------------
@@ -188,10 +188,7 @@ export class PsakeTreeDataProvider implements vscode.TreeDataProvider<PsakeTreeI
             try {
                 const bytes = await vscode.workspace.fs.readFile(uri);
                 const content = Buffer.from(bytes).toString('utf8');
-                const tasks = parsePsakeFile(content);
-                if (this.resolver) {
-                    await enrichModuleTasks(tasks, this.resolver);
-                }
+                const tasks = await resolveAllTasks(content, uri, this.resolver);
                 this.cache.set(uri.toString(), { uri, folder, tasks });
             } catch (err) {
                 logError(err, false);

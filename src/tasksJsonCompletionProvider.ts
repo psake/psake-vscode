@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { findPsakeFiles, parsePsakeFile, PsakeTaskInfo } from './psakeParser.js';
-import { PsakeModuleResolver, enrichModuleTasks } from './moduleResolver.js';
+import { findPsakeFiles, PsakeTaskInfo } from './psakeParser.js';
+import { PsakeModuleResolver, resolveAllTasks } from './moduleResolver.js';
 import { logError } from './log.js';
 
 /**
@@ -148,10 +148,7 @@ export class PsakeTaskCompletionProvider implements vscode.CompletionItemProvide
             for (const uri of uris) {
                 const bytes = await vscode.workspace.fs.readFile(uri);
                 const content = Buffer.from(bytes).toString('utf8');
-                tasks.push(...parsePsakeFile(content));
-            }
-            if (this.resolver) {
-                await enrichModuleTasks(tasks, this.resolver);
+                tasks.push(...await resolveAllTasks(content, uri, this.resolver));
             }
         } catch (err) {
             logError(err, false);

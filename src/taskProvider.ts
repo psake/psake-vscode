@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { findPsakeFiles, parsePsakeFile } from './psakeParser.js';
+import { findPsakeFiles } from './psakeParser.js';
 import { TASK_TYPE } from './constants.js';
 import { logError } from './log.js';
 import { detectPowerShellExecutable } from './powershellUtils.js';
-import { PsakeModuleResolver, enrichModuleTasks } from './moduleResolver.js';
+import { PsakeModuleResolver, resolveAllTasks } from './moduleResolver.js';
 
 export interface PsakeTaskDefinition extends vscode.TaskDefinition {
     type: 'psake';
@@ -182,10 +182,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
                 try {
                     const bytes = await vscode.workspace.fs.readFile(uri);
                     const content = Buffer.from(bytes).toString('utf8');
-                    const psakeTaskInfos = parsePsakeFile(content);
-                    if (this.resolver) {
-                        await enrichModuleTasks(psakeTaskInfos, this.resolver);
-                    }
+                    const psakeTaskInfos = await resolveAllTasks(content, uri, this.resolver);
                     const relativeFile = path.relative(folder.uri.fsPath, uri.fsPath);
 
                     for (const info of psakeTaskInfos) {

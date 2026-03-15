@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.1.0] 2026-03-14
+
+### Added
+
+- **Module task resolution (`-FromModule`)**: tasks can now reference other
+  psake modules with version constraints (MinimumVersion, MaximumVersion,
+  RequiredVersion, LessThanVersion). Module tasks are resolved to show
+  dependencies and descriptions in the tree view and jump-to-definition
+  navigates to the module's psakeFile.ps1
+- **Include file support**: tasks from files included via `Include` statements
+  (with `-Path`, `-LiteralPath`, or `-fileNamePathToInclude` parameters) are
+  now discovered and displayed in the tree view, task provider, and code lens
+- **Full task expansion**: all tasks exported by referenced modules become
+  available to the build, appearing in task lists and completions
+- **Source file tracking**: tasks from modules or include files retain their
+  source file path for accurate navigation and visual distinction
+- **New snippet**: `psakeTaskFromModule` for quickly authoring module reference
+  tasks with version constraints
+
+### Changed
+
+- Parser now extracts `-FromModule` parameter and version constraints
+- Tree view, task provider, and completions now show module and include task
+  origins via icons and metadata
+- Task definition interface now tracks module/include source and resolved state
+
+### Fixed
+
+- Version constraint comparison logic matches psake's Test-ModuleVersion
+  semantics exactly (minimum ≥, maximum ≤, less-than <, required ==)
+
 ## [1.0.2] 2026-03-13
 
 ### Fixed

@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as childProcess from 'child_process';
-import { findPsakeFiles, parsePsakeFile } from './psakeParser.js';
+import { findPsakeFiles } from './psakeParser.js';
 import { TASK_TYPE } from './constants.js';
 import { logError } from './log.js';
+import { detectPowerShellExecutable } from './powershellUtils.js';
+import { PsakeModuleResolver, resolveAllTasks } from './moduleResolver.js';
 
 export interface PsakeTaskDefinition extends vscode.TaskDefinition {
     type: 'psake';
@@ -19,8 +20,10 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
     private detectedExecutable: string | undefined;
     /** Cached build script path per workspace folder URI */
     private buildScriptCache = new Map<string, string | undefined>();
+    private readonly resolver: PsakeModuleResolver | undefined;
 
-    constructor(watcher: vscode.FileSystemWatcher) {
+    constructor(watcher: vscode.FileSystemWatcher, resolver?: PsakeModuleResolver) {
+        this.resolver = resolver;
         this.bindWatcher(watcher);
     }
 
@@ -48,7 +51,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         }
         // Detect the PowerShell executable before building tasks so the
         // cached result is available for buildTask (which is synchronous).
-        await this.detectPowerShellExecutable();
+        await this.getExecutable();
         this.cachedTasks = await this.detectTasks();
         return this.cachedTasks;
     }
@@ -90,48 +93,13 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
     // PowerShell executable detection
     // -------------------------------------------------------------------------
 
-    /**
-     * Detects which PowerShell executable is available on the system.
-     * Prefers pwsh (PowerShell 7+), falls back to powershell (Windows PowerShell 5.1).
-     * Caches the result for the lifetime of the provider.
-     */
-    private async detectPowerShellExecutable(): Promise<string> {
+    /** Returns the cached PowerShell executable, detecting it on first call. */
+    private async getExecutable(): Promise<string> {
         if (this.detectedExecutable) {
             return this.detectedExecutable;
         }
-
-        const config = vscode.workspace.getConfiguration('psake');
-        const configured: string = config.get('powershellExecutable') ?? '';
-        if (configured) {
-            this.detectedExecutable = configured;
-            return configured;
-        }
-
-        const candidates = ['pwsh', 'powershell'];
-        for (const exe of candidates) {
-            if (await this.testExecutable(exe)) {
-                this.detectedExecutable = exe;
-                return exe;
-            }
-        }
-
-        // Fall back to pwsh and let the error surface when the task runs
-        return 'pwsh';
-    }
-
-    private testExecutable(executable: string): Promise<boolean> {
-        return new Promise<boolean>(resolve => {
-            const ps = childProcess.spawn(
-                executable,
-                ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'Write-Host "OK"'],
-                { shell: true }
-            );
-
-            let hasOutput = false;
-            ps.stdout.on('data', () => { hasOutput = true; });
-            ps.on('close', (code: number) => resolve(code === 0 && hasOutput));
-            ps.on('error', () => resolve(false));
-        });
+        this.detectedExecutable = await detectPowerShellExecutable();
+        return this.detectedExecutable;
     }
 
     // -------------------------------------------------------------------------
@@ -167,8 +135,8 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
             // Auto-detect build.ps1 in workspace root (case-insensitive)
             try {
                 const files = await vscode.workspace.fs.readDirectory(folder.uri);
-                const buildFile = files.find(([name, type]) => 
-                    type === vscode.FileType.File && 
+                const buildFile = files.find(([name, type]) =>
+                    type === vscode.FileType.File &&
                     name.toLowerCase() === 'build.ps1'
                 );
                 result = buildFile ? buildFile[0] : undefined;
@@ -214,7 +182,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
                 try {
                     const bytes = await vscode.workspace.fs.readFile(uri);
                     const content = Buffer.from(bytes).toString('utf8');
-                    const psakeTaskInfos = parsePsakeFile(content);
+                    const psakeTaskInfos = await resolveAllTasks(content, uri, this.resolver);
                     const relativeFile = path.relative(folder.uri.fsPath, uri.fsPath);
 
                     for (const info of psakeTaskInfos) {
@@ -250,8 +218,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
             ? buildBuildScriptCommand(buildScript, def.task, config.get('buildScriptTaskParameter') ?? 'Task', extraScriptParams)
             : buildInvokePsakeCommand(buildFile, def.task, extraInvokeParams);
 
-        // Use the detected executable asynchronously; fall back to pwsh
-        // if detection hasn't completed yet (resolveTask is sync).
+        // Use the already-detected executable; fall back to pwsh if not yet detected.
         const executable = this.detectedExecutable ?? 'pwsh';
         const extraShellArgs: string[] = config.get('shellArgs') ?? ['-NoProfile'];
 

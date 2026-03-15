@@ -6,6 +6,45 @@ export interface PsakeTaskInfo {
     description: string;
     /** Zero-based line number where the Task declaration begins */
     line: number;
+    /** Module name supplied via the -FromModule parameter (SharedTask parameter set) */
+    fromModule?: string;
+    /** Version constraints for the -FromModule module */
+    requiredVersion?: string;
+    minimumVersion?: string;
+    maximumVersion?: string;
+    lessThanVersion?: string;
+    /**
+     * Populated by the module resolver after attempting to locate the named module.
+     * true  = module found and task metadata merged.
+     * false = module not found or version constraint not satisfied.
+     * undefined = task has no -FromModule, or resolution hasn't been run yet.
+     */
+    moduleResolved?: boolean;
+    /**
+     * Set when the task was discovered from an `Include`-d file rather than the
+     * main psakefile.  Holds the path as written in the Include statement
+     * (relative or absolute), used for display purposes.
+     */
+    includedFrom?: string;
+    /**
+     * Absolute file-system path to the file where this task is defined.
+     * Populated for tasks from modules and Include files so that the
+     * "Go to Task Definition" command opens the correct source file.
+     * Undefined for tasks declared directly in the main psakefile.
+     */
+    sourceFilePath?: string;
+}
+
+/**
+ * Represents an `Include` statement found in a psakefile.
+ */
+export interface PsakeIncludeInfo {
+    /** The path as written in the Include statement (may be relative or absolute). */
+    path: string;
+    /** True when the -LiteralPath parameter was used. */
+    isLiteral: boolean;
+    /** Zero-based line number of the Include statement. */
+    line: number;
 }
 
 /**
@@ -118,8 +157,13 @@ function parseTaskLine(line: string, lineIndex: number): PsakeTaskInfo | null {
 
     const dependencies = extractDepends(rest);
     const description = extractDescription(rest);
+    const fromModule = extractFromModule(rest) ?? undefined;
+    const requiredVersion = (extractVersionParam(rest, 'RequiredVersion') ?? extractVersionParam(rest, 'Version')) ?? undefined;
+    const minimumVersion = extractVersionParam(rest, 'MinimumVersion') ?? undefined;
+    const maximumVersion = extractVersionParam(rest, 'MaximumVersion') ?? undefined;
+    const lessThanVersion = extractVersionParam(rest, 'LessThanVersion') ?? undefined;
 
-    return { name, dependencies, description, line: lineIndex };
+    return { name, dependencies, description, line: lineIndex, fromModule, requiredVersion, minimumVersion, maximumVersion, lessThanVersion };
 }
 
 /** Matches a possibly-quoted identifier */
@@ -157,4 +201,79 @@ function extractDescription(rest: string): string {
     // -Description "some text" or -Description 'some text'
     const match = rest.match(/-Description\s+["']([^"']*)["']/i);
     return match ? match[1] : '';
+}
+
+function extractFromModule(rest: string): string | null {
+    // -FromModule ModuleName  or  -FromModule 'ModuleName'  or  -FromModule "ModuleName"
+    const match = rest.match(/-FromModule\s+["']?([A-Za-z0-9_.\-]+)["']?/i);
+    return match ? match[1] : null;
+}
+
+function extractVersionParam(rest: string, paramName: string): string | null {
+    // Handles -MinimumVersion '1.2.3', -RequiredVersion "1.2.3", -Version 1.2.3, etc.
+    const escaped = paramName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = rest.match(new RegExp(`-${escaped}\\s+["']?([\\w.]+)["']?`, 'i'));
+    return match ? match[1] : null;
+}
+
+// ---------------------------------------------------------------------------
+// Include parsing
+// ---------------------------------------------------------------------------
+
+/**
+ * Parses all `Include` statements from a psakefile.
+ *
+ * Handles these forms (all case-insensitive, with or without quotes):
+ *
+ *   Include './helpers.ps1'
+ *   Include -Path './helpers.ps1'
+ *   Include -fileNamePathToInclude './helpers.ps1'
+ *   Include -LiteralPath './helpers.ps1'
+ */
+export function parseIncludes(content: string): PsakeIncludeInfo[] {
+    const result: PsakeIncludeInfo[] = [];
+    const lines = content.split(/\r?\n/);
+    const joined = joinContinuationLines(lines);
+
+    for (const { text, originalLine } of joined) {
+        const trimmed = text.trimStart();
+        if (!trimmed || trimmed.startsWith('#')) {
+            continue;
+        }
+        const info = parseIncludeLine(trimmed, originalLine);
+        if (info) {
+            result.push(info);
+        }
+    }
+
+    return result;
+}
+
+function parseIncludeLine(line: string, lineIndex: number): PsakeIncludeInfo | null {
+    if (!/^Include\s+/i.test(line)) {
+        return null;
+    }
+    const rest = line.replace(/^Include\s+/i, '').trim();
+
+    // -LiteralPath
+    const literalMatch = rest.match(/^-LiteralPath\s+["']?([^"'\s]+)["']?/i);
+    if (literalMatch) {
+        return { path: literalMatch[1], isLiteral: true, line: lineIndex };
+    }
+
+    // -Path or -fileNamePathToInclude (named parameter)
+    const namedMatch = rest.match(/^-(?:Path|fileNamePathToInclude)\s+["']?([^"'\s]+)["']?/i);
+    if (namedMatch) {
+        return { path: namedMatch[1], isLiteral: false, line: lineIndex };
+    }
+
+    // Positional: must not start with '-' (that would be an unknown param)
+    if (!rest.startsWith('-')) {
+        const posMatch = rest.match(/^["']?([^"'\s]+)["']?/);
+        if (posMatch) {
+            return { path: posMatch[1], isLiteral: false, line: lineIndex };
+        }
+    }
+
+    return null;
 }

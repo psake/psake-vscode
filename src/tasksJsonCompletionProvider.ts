@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { findPsakeFiles, parsePsakeFile, PsakeTaskInfo } from './psakeParser.js';
+import { findPsakeFiles, PsakeTaskInfo } from './psakeParser.js';
+import { PsakeModuleResolver, resolveAllTasks } from './moduleResolver.js';
 import { logError } from './log.js';
 
 /**
@@ -14,8 +15,10 @@ export class PsakeTaskCompletionProvider implements vscode.CompletionItemProvide
     private cachedTasks: PsakeTaskInfo[] | undefined;
     private cacheTime = 0;
     private static readonly CACHE_TTL_MS = 5000;
+    private readonly resolver: PsakeModuleResolver | undefined;
 
-    constructor(watcher: vscode.FileSystemWatcher) {
+    constructor(watcher: vscode.FileSystemWatcher, resolver?: PsakeModuleResolver) {
+        this.resolver = resolver;
         const invalidate = (): void => { this.cachedTasks = undefined; };
         watcher.onDidChange(invalidate);
         watcher.onDidCreate(invalidate);
@@ -46,10 +49,20 @@ export class PsakeTaskCompletionProvider implements vscode.CompletionItemProvide
             item.detail = info.description || `psake task`;
             item.sortText = String(index).padStart(4, '0');
 
+            const docParts: string[] = [];
+            if (info.fromModule) {
+                docParts.push(`**From module:** \`${info.fromModule}\``);
+                if (info.requiredVersion) { docParts.push(`Required version: ${info.requiredVersion}`); }
+                if (info.minimumVersion) { docParts.push(`Minimum version: ≥ ${info.minimumVersion}`); }
+                if (info.maximumVersion) { docParts.push(`Maximum version: ≤ ${info.maximumVersion}`); }
+                if (info.lessThanVersion) { docParts.push(`Less than version: ${info.lessThanVersion}`); }
+                if (info.moduleResolved === false) { docParts.push(`⚠ Module not found or version constraint not satisfied.`); }
+            }
             if (info.dependencies.length > 0) {
-                item.documentation = new vscode.MarkdownString(
-                    `**Depends on:** ${info.dependencies.join(', ')}`
-                );
+                docParts.push(`**Depends on:** ${info.dependencies.join(', ')}`);
+            }
+            if (docParts.length > 0) {
+                item.documentation = new vscode.MarkdownString(docParts.join('\n\n'));
             }
 
             return item;
@@ -135,7 +148,7 @@ export class PsakeTaskCompletionProvider implements vscode.CompletionItemProvide
             for (const uri of uris) {
                 const bytes = await vscode.workspace.fs.readFile(uri);
                 const content = Buffer.from(bytes).toString('utf8');
-                tasks.push(...parsePsakeFile(content));
+                tasks.push(...await resolveAllTasks(content, uri, this.resolver));
             }
         } catch (err) {
             logError(err, false);

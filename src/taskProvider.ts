@@ -18,7 +18,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
     private cachedTasks: vscode.Task[] | undefined;
     private watcherDisposables: vscode.Disposable[] = [];
     private detectedExecutable: string | undefined;
-    /** Cached build script path per workspace folder URI */
+    /** Cached build script path per directory URI */
     private buildScriptCache = new Map<string, string | undefined>();
     private readonly resolver: PsakeModuleResolver | undefined;
 
@@ -73,8 +73,12 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         }
 
         const folder = scope as vscode.WorkspaceFolder;
-        const buildScript = await this.resolveBuildScript(folder);
-        return this.buildTask(def, folder, undefined, buildScript);
+        const defaultFile: string = vscode.workspace.getConfiguration('psake', folder).get('buildFile') ?? 'psakefile.ps1';
+        const relFile = def.file ?? defaultFile;
+        const psakeFileDir = path.resolve(folder.uri.fsPath, path.dirname(relFile));
+        const dirUri = vscode.Uri.file(psakeFileDir);
+        const buildScript = await this.resolveBuildScript(folder, dirUri);
+        return this.buildTask(def, folder, undefined, buildScript, psakeFileDir);
     }
 
     /**
@@ -85,8 +89,13 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         def: vscode.TaskDefinition,
         folder: vscode.WorkspaceFolder
     ): Promise<vscode.Task> {
-        const buildScript = await this.resolveBuildScript(folder);
-        return this.buildTask(def as PsakeTaskDefinition, folder, undefined, buildScript);
+        const pDef = def as PsakeTaskDefinition;
+        const defaultFile: string = vscode.workspace.getConfiguration('psake', folder).get('buildFile') ?? 'psakefile.ps1';
+        const relFile = pDef.file ?? defaultFile;
+        const psakeFileDir = path.resolve(folder.uri.fsPath, path.dirname(relFile));
+        const dirUri = vscode.Uri.file(psakeFileDir);
+        const buildScript = await this.resolveBuildScript(folder, dirUri);
+        return this.buildTask(pDef, folder, undefined, buildScript, psakeFileDir);
     }
 
     // -------------------------------------------------------------------------
@@ -114,10 +123,11 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
      * Resolution order:
      * 1. `psake.buildScript` set to "none" → no build script
      * 2. `psake.buildScript` set to a path → use that path
-     * 3. `psake.buildScript` empty → auto-detect build.ps1 in workspace root
+     * 3. `psake.buildScript` empty → auto-detect build.ps1 in psakefile directory
      */
-    private async resolveBuildScript(folder: vscode.WorkspaceFolder): Promise<string | undefined> {
-        const key = folder.uri.toString();
+    private async resolveBuildScript(folder: vscode.WorkspaceFolder, dirUri?: vscode.Uri): Promise<string | undefined> {
+        const searchUri = dirUri ?? folder.uri;
+        const key = searchUri.toString();
         if (this.buildScriptCache.has(key)) {
             return this.buildScriptCache.get(key);
         }
@@ -130,11 +140,11 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         if (configured.toLowerCase() === 'none') {
             result = undefined;
         } else if (configured) {
-            result = configured;
+            result = path.resolve(folder.uri.fsPath, configured);
         } else {
-            // Auto-detect build.ps1 in workspace root (case-insensitive)
+            // Auto-detect build.ps1 in the psakefile's directory (case-insensitive)
             try {
-                const files = await vscode.workspace.fs.readDirectory(folder.uri);
+                const files = await vscode.workspace.fs.readDirectory(searchUri);
                 const buildFile = files.find(([name, type]) =>
                     type === vscode.FileType.File &&
                     name.toLowerCase() === 'build.ps1'
@@ -161,7 +171,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         const uris = await findPsakeFiles();
         const tasks: vscode.Task[] = [];
 
-        // Group URIs by workspace folder so we resolve the build script once per folder
+        // Group URIs by workspace folder
         const folderMap = new Map<string, { folder: vscode.WorkspaceFolder; uris: vscode.Uri[] }>();
         for (const uri of uris) {
             const folder = vscode.workspace.getWorkspaceFolder(uri);
@@ -176,9 +186,11 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         }
 
         for (const { folder, uris: folderUris } of folderMap.values()) {
-            const buildScript = await this.resolveBuildScript(folder);
-
             for (const uri of folderUris) {
+                const psakeFileDir = path.dirname(uri.fsPath);
+                const dirUri = vscode.Uri.file(psakeFileDir);
+                const buildScript = await this.resolveBuildScript(folder, dirUri);
+
                 try {
                     const bytes = await vscode.workspace.fs.readFile(uri);
                     const content = Buffer.from(bytes).toString('utf8');
@@ -191,7 +203,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
                             task: info.name,
                             file: relativeFile,
                         };
-                        tasks.push(this.buildTask(def, folder, info.description, buildScript));
+                        tasks.push(this.buildTask(def, folder, info.description, buildScript, psakeFileDir));
                     }
                 } catch (err) {
                     logError(err, false);
@@ -206,17 +218,20 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         def: PsakeTaskDefinition,
         folder: vscode.WorkspaceFolder,
         description?: string,
-        buildScript?: string
+        buildScript?: string,
+        psakeFileDir?: string
     ): vscode.Task {
         const config = vscode.workspace.getConfiguration('psake', folder);
         const defaultFile: string = config.get('buildFile') ?? 'psakefile.ps1';
         const buildFile = def.file ?? defaultFile;
+        // When cwd is set to the psakefile's directory, use just the filename
+        const invokeFile = psakeFileDir ? path.basename(buildFile) : buildFile;
 
         const extraInvokeParams: string = config.get('invokeParameters') ?? '';
         const extraScriptParams: string = config.get('buildScriptParameters') ?? '';
         const command = buildScript
             ? buildBuildScriptCommand(buildScript, def.task, config.get('buildScriptTaskParameter') ?? 'Task', extraScriptParams)
-            : buildInvokePsakeCommand(buildFile, def.task, extraInvokeParams);
+            : buildInvokePsakeCommand(invokeFile, def.task, extraInvokeParams);
 
         // Use the already-detected executable; fall back to pwsh if not yet detected.
         const executable = this.detectedExecutable ?? 'pwsh';
@@ -230,6 +245,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
             new vscode.ShellExecution(command, {
                 executable,
                 shellArgs: [...extraShellArgs, '-Command'],
+                cwd: psakeFileDir,
             }),
             []
         );
@@ -256,5 +272,6 @@ function buildBuildScriptCommand(scriptPath: string, taskName: string, parameter
     const escapedTask = taskName.replace(/'/g, "''");
     const escapedParam = parameterName.replace(/^-/, '');
     const extra = extraParams ? ` ${extraParams}` : '';
-    return `./'${escapedScript}' -${escapedParam} '${escapedTask}'${extra}`;
+    const prefix = path.isAbsolute(scriptPath) ? `& '${escapedScript}'` : `./'${escapedScript}'`;
+    return `${prefix} -${escapedParam} '${escapedTask}'${extra}`;
 }

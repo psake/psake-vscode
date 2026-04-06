@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.2.0] 2026-04-06
+
+### Added
+
+- **Per-directory build script resolution**: each psakefile now uses a co-located
+  `build.ps1` if one exists in its directory, instead of always using the
+  workspace root's build script. Supports monorepo layouts where subdirectories
+  have their own `psakefile.ps1` + `build.ps1` pairs
+- Tasks now run with `cwd` set to the psakefile's directory, so relative paths
+  in build scripts resolve correctly
+
+### Changed
+
+- `psake.buildScript` explicit config is now resolved to an absolute path so it
+  works regardless of the task's working directory
+- Build script auto-detection searches the psakefile's directory instead of only
+  the workspace root
+
 ## [1.1.0] 2026-03-14
 
 ### Added

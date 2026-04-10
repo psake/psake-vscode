@@ -30,10 +30,21 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      - name: Read and validate changelog
+        id: changelog
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          validation_level: warn
+          path: ./CHANGELOG.md
+
       - name: Package VSIX
         run: |
           mkdir -p out
-          npx @vscode/vsce package --out ./out/
+          if [ "${{ steps.changelog.outputs.status }}" = "prereleased" ]; then
+            npx @vscode/vsce package --pre-release --out ./out/
+          else
+            npx @vscode/vsce package --out ./out/
+          fi
 
       - name: Extract release metadata
         id: release_meta
@@ -63,12 +74,7 @@ jobs:
           Get-ChildItem -Path ./out/*.vsix | ForEach-Object {
               echo "asset_path=$($_.FullName)" >> $env:GITHUB_OUTPUT
           }
-      - name: Read and validate changelog (keepachangelog)
-        id: changelog
-        uses: mindsers/changelog-reader-action@v2
-        with:
-          validation_level: warn
-          path: ./CHANGELOG.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -85,3 +91,4 @@ jobs:
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
           extensionFile: ${{ steps.release_meta.outputs.asset_path }}
           registryUrl: https://marketplace.visualstudio.com
+          preRelease: ${{ steps.changelog.outputs.status == 'prereleased' }}

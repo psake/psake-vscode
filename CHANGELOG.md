@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.3.0-preview.1] 2026-04-10
+
+### Added
+
+- **Problem matchers for psake v5**: two new named problem matchers surface
+  errors and warnings in the VS Code Problems panel with clickable
+  file/line/column navigation
+  - `$psake`: parses GitHub Actions-compatible annotation lines emitted by
+    psake v5's `Annotated` output format
+  - `$psake-powershell`: fallback matcher for raw PowerShell error output
+    (e.g. syntax errors before the build plan compiles)
+- **Automatic activation**: the task provider auto-attaches both matchers and
+  sets `PSAKE_OUTPUT_FORMAT=Annotated` in the shell environment so the mode
+  works through wrapper scripts without parameter forwarding
+- **New setting** `psake.problemMatcher.enabled` (default: `true`): controls
+  problem matcher attachment and environment variable injection. Set to `false`
+  to disable without affecting the rest of the task provider
+- The "Sync Tasks" command now includes `problemMatcher` on newly created
+  `tasks.json` entries
+
+### Notes
+
+- Requires psake v5 (alpha) with `Annotated` output format support for the
+  `$psake` matcher to produce results. The `$psake-powershell` matcher works
+  independently
+- This is a preview release for early feedback — the problem matcher regexes
+  may be refined based on real-world psake v5 output samples
+
 ## [1.2.0] 2026-04-06
 
 ### Added

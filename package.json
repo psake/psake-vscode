@@ -91,6 +91,55 @@
 				}
 			}
 		],
+		"problemPatterns": [
+			{
+				"name": "psake-annotation",
+				"regexp": "^::(error|warning|notice)\\s+file=([^,]+),line=(\\d+)(?:,endLine=\\d+)?(?:,col=(\\d+))?(?:,endColumn=\\d+)?(?:,title=(.*?))?::(.*)$",
+				"severity": 1,
+				"file": 2,
+				"line": 3,
+				"column": 4,
+				"code": 5,
+				"message": 6
+			}
+		],
+		"problemMatchers": [
+			{
+				"name": "psake",
+				"owner": "psake",
+				"source": "psake",
+				"applyTo": "allDocuments",
+				"fileLocation": [
+					"autoDetect",
+					"${workspaceFolder}"
+				],
+				"pattern": "$psake-annotation"
+			},
+			{
+				"name": "psake-powershell",
+				"owner": "psake",
+				"source": "powershell",
+				"severity": "error",
+				"applyTo": "allDocuments",
+				"fileLocation": [
+					"autoDetect",
+					"${workspaceFolder}"
+				],
+				"pattern": [
+					{
+						"regexp": "^(.+?)\\s*:\\s*(.+)$",
+						"file": 1,
+						"message": 2
+					},
+					{
+						"regexp": "^At (?:(.+):)?(?:line:)?(\\d+) char:(\\d+)",
+						"file": 1,
+						"line": 2,
+						"column": 3
+					}
+				]
+			}
+		],
 		"views": {
 			"explorer": [
 				{
@@ -184,6 +233,11 @@
 					"type": "string",
 					"default": "",
 					"description": "Extra parameters appended to the build script call when a build script wrapper is used (e.g., \"-Configuration Release -Clean\")."
+				},
+				"psake.problemMatcher.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Attach $psake and $psake-powershell problem matchers to provider-created tasks and set PSAKE_OUTPUT_FORMAT=Annotated on invoked psake processes. Requires psake v5 with Annotated output format support."
 				}
 			}
 		}

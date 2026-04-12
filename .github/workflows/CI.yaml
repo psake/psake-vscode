@@ -7,6 +7,31 @@ on:
   workflow_dispatch:
 
 jobs:
+  version-check:
+    name: Version bump check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Warn if package.json version is unchanged
+        shell: pwsh
+        run: |
+          $base = '${{ github.event.pull_request.base.ref }}'
+          git fetch --depth=1 origin $base | Out-Null
+          $headVersion = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          $basePkgJson = git show "origin/${base}:package.json" | Out-String
+          $baseVersion = ($basePkgJson | ConvertFrom-Json).version
+          Write-Host "Base ($base) version: $baseVersion"
+          Write-Host "Head version:        $headVersion"
+          if ($headVersion -eq $baseVersion) {
+              Write-Host "::warning file=package.json::package.json version is still $headVersion. Bump it (and add a CHANGELOG entry) if this PR should cut a release — the release workflow will no-op otherwise."
+          } else {
+              Write-Host "Version bumped: $baseVersion -> $headVersion"
+          }
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

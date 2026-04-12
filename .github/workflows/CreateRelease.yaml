@@ -38,16 +38,16 @@ jobs:
         shell: pwsh
         run: |
           # push to main => pre-release; workflow_dispatch => full release.
+          # Pre-release and full release use distinct tag shapes so the two paths
+          # never block each other's skip check:
+          #   pre-release -> v{version}-pre
+          #   full        -> v{version}
           $isPreRelease = '${{ github.event_name }}' -eq 'push'
           $preReleaseStr = $isPreRelease.ToString().ToLower()
           echo "pre_release=$preReleaseStr" >> $env:GITHUB_OUTPUT
 
-          # Read version from package.json
           $pkg = Get-Content -Raw package.json | ConvertFrom-Json
           $version = $pkg.version
-          $tag = "v$version"
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "tag=$tag" >> $env:GITHUB_OUTPUT
 
           # VS Code Marketplace requires bare major.minor.patch (no -suffix) for pre-releases.
           # See https://code.visualstudio.com/api/working-with-extensions/publishing-extension#prerelease-extensions
@@ -55,9 +55,14 @@ jobs:
               throw "package.json version '$version' must be major.minor.patch with no suffix."
           }
 
+          $tag = if ($isPreRelease) { "v$version-pre" } else { "v$version" }
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+
           # Skip re-releasing an already-published version (e.g. non-version-bump merges to main).
-          $tagExists = (git tag -l $tag) -ne ''
-          if ($tagExists) {
+          # The Marketplace also enforces monotonic versions across channels, so republishing
+          # the same version number would fail the publish step regardless.
+          if ([bool](git tag -l $tag)) {
               Write-Host "Tag $tag already exists — skipping release."
               echo "skip=true" >> $env:GITHUB_OUTPUT
               return

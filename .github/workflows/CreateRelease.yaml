@@ -2,6 +2,11 @@ name: Create Release
 
 on:
   workflow_dispatch:
+    inputs:
+      pre_release:
+        description: "Publish as a pre-release (VS Code Marketplace --pre-release + GitHub prerelease)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -30,23 +35,7 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Read and validate changelog
-        id: changelog
-        uses: mindsers/changelog-reader-action@v2
-        with:
-          validation_level: warn
-          path: ./CHANGELOG.md
-
-      - name: Package VSIX
-        run: |
-          mkdir -p out
-          if [ "${{ steps.changelog.outputs.status }}" = "prereleased" ]; then
-            npx @vscode/vsce package --pre-release --out ./out/
-          else
-            npx @vscode/vsce package --out ./out/
-          fi
-
-      - name: Extract release metadata
+      - name: Resolve release metadata
         id: release_meta
         shell: pwsh
         run: |
@@ -56,21 +45,39 @@ jobs:
           echo "version=$version" >> $env:GITHUB_OUTPUT
           echo "tag=v$version" >> $env:GITHUB_OUTPUT
 
-          # Extract latest changelog entry
+          # VS Code Marketplace requires bare major.minor.patch (no -suffix) for pre-releases.
+          # See https://code.visualstudio.com/api/working-with-extensions/publishing-extension#prerelease-extensions
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+              throw "package.json version '$version' must be major.minor.patch with no suffix."
+          }
+
+          # Extract latest changelog entry body for the GitHub Release
           $changelog = Get-Content CHANGELOG.md -Raw
-          # Match the first ## [x.y.z] section and grab its body
-          if ($changelog -match '(?ms)^## \[([^\]]+)\]\s*\r?\n(.*?)(?=^## |\z)') {
+          if ($changelog -match '(?ms)^## \[([^\]]+)\][^\n]*\r?\n(.*?)(?=^## |\z)') {
               $title = $Matches[1]
               $body = $Matches[2].Trim()
+              if ($title -ne $version) {
+                  throw "Top changelog entry is [$title] but package.json is $version — they must match before releasing."
+              }
               echo "title=$title" >> $env:GITHUB_OUTPUT
-
-              # Write body to a file for multi-line output
               $body | Out-File -FilePath release_body.md -Encoding utf8
           } else {
-              echo "title=v$version" >> $env:GITHUB_OUTPUT
-              "Release v$version" | Out-File -FilePath release_body.md -Encoding utf8
+              throw "No ## [x.y.z] section found in CHANGELOG.md."
           }
-          # Output the file path for later steps
+
+      - name: Package VSIX
+        run: |
+          mkdir -p out
+          if [ "${{ inputs.pre_release }}" = "true" ]; then
+            npx @vscode/vsce package --pre-release --out ./out/
+          else
+            npx @vscode/vsce package --out ./out/
+          fi
+
+      - name: Record VSIX path
+        id: vsix
+        shell: pwsh
+        run: |
           Get-ChildItem -Path ./out/*.vsix | ForEach-Object {
               echo "asset_path=$($_.FullName)" >> $env:GITHUB_OUTPUT
           }
@@ -79,16 +86,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_meta.outputs.tag }}
-          name: Release ${{ steps.changelog.outputs.version }}
-          body: ${{ steps.changelog.outputs.changes }}
-          prerelease: ${{ steps.changelog.outputs.status == 'prereleased' }}
-          draft: ${{ steps.changelog.outputs.status == 'unreleased' }}
-          files: ${{ steps.release_meta.outputs.asset_path }}
+          name: Release ${{ steps.release_meta.outputs.version }}
+          body_path: release_body.md
+          prerelease: ${{ inputs.pre_release }}
+          files: ${{ steps.vsix.outputs.asset_path }}
 
       - name: Publish to VS Code Marketplace
         uses: HaaLeo/publish-vscode-extension@v2
         with:
           pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
-          extensionFile: ${{ steps.release_meta.outputs.asset_path }}
+          extensionFile: ${{ steps.vsix.outputs.asset_path }}
           registryUrl: https://marketplace.visualstudio.com
-          preRelease: ${{ steps.changelog.outputs.status == 'prereleased' }}
+          preRelease: ${{ inputs.pre_release }}

@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.3.0-preview.1] 2026-04-10
+## [1.4.0] 2026-04-12
 
 ### Added
 
@@ -25,8 +25,6 @@
 - Requires psake v5 (alpha) with `Annotated` output format support for the
   `$psake` matcher to produce results. The `$psake-powershell` matcher works
   independently
-- This is a preview release for early feedback — the problem matcher regexes
-  may be refined based on real-world psake v5 output samples
 
 ## [1.2.0] 2026-04-06
 

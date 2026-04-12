@@ -224,8 +224,8 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         const config = vscode.workspace.getConfiguration('psake', folder);
         const defaultFile: string = config.get('buildFile') ?? 'psakefile.ps1';
         const buildFile = def.file ?? defaultFile;
-        // When cwd is set to the psakefile's directory, use just the filename
-        const invokeFile = psakeFileDir ? path.basename(buildFile) : buildFile;
+        // Always resolve to an absolute path so the command works regardless of cwd
+        const invokeFile = path.resolve(folder.uri.fsPath, buildFile);
 
         const extraInvokeParams: string = config.get('invokeParameters') ?? '';
         const extraScriptParams: string = config.get('buildScriptParameters') ?? '';

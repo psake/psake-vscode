@@ -237,17 +237,25 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         const executable = this.detectedExecutable ?? 'pwsh';
         const extraShellArgs: string[] = config.get('shellArgs') ?? ['-NoProfile'];
 
+        const problemMatcherEnabled: boolean = config.get('problemMatcher.enabled') ?? true;
+
+        const shellOptions: vscode.ShellExecutionOptions = {
+            executable,
+            shellArgs: [...extraShellArgs, '-Command'],
+            cwd: psakeFileDir,
+        };
+
+        if (problemMatcherEnabled) {
+            shellOptions.env = { PSAKE_OUTPUT_FORMAT: 'Annotated' };
+        }
+
         const task = new vscode.Task(
             def,
             folder,
             def.task,
             'psake',
-            new vscode.ShellExecution(command, {
-                executable,
-                shellArgs: [...extraShellArgs, '-Command'],
-                cwd: psakeFileDir,
-            }),
-            []
+            new vscode.ShellExecution(command, shellOptions),
+            problemMatcherEnabled ? ['$psake', '$psake-powershell'] : []
         );
 
         task.detail = description || `Run psake task '${def.task}'`;

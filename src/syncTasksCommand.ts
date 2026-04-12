@@ -103,6 +103,8 @@ export async function syncTasksCommand(): Promise<void> {
     }
 
     // Add new tasks
+    const config = vscode.workspace.getConfiguration('psake', folder);
+    const problemMatcherEnabled: boolean = config.get('problemMatcher.enabled') ?? true;
     let added = 0;
     for (const dt of discoveredTasks) {
         const key = taskKey(dt.name, dt.file);
@@ -115,6 +117,7 @@ export async function syncTasksCommand(): Promise<void> {
             task: dt.name,
             file: dt.file,
             label: `psake: ${dt.name}`,
+            ...(problemMatcherEnabled && { problemMatcher: ['$psake', '$psake-powershell'] }),
         };
 
         tasksJson.tasks.push(entry);

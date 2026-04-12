@@ -82,7 +82,7 @@ jobs:
         run: node esbuild.mjs --production
 
       - name: Package VSIX
-        run: npx @vscode/vsce package --out ./out/
+        run: npx @vscode/vsce package --out out
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4

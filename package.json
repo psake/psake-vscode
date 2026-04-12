@@ -277,5 +277,19 @@
 		"powershell",
 		"vscode",
 		"tasks"
-	]
+	],
+	"cspell": {
+		"version": "0.2",
+		"ignorePaths": [],
+		"dictionaryDefinitions": [],
+		"dictionaries": [],
+		"words": [
+			"opencollective",
+			"psake",
+			"psakefile",
+			"pwsh"
+		],
+		"ignoreWords": [],
+		"import": []
+	}
 }

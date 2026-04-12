@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased]
+
+## [1.5.0] - 2026-04-12
+
+### Added
+
+- **Build/Test classification for psake tasks**: auto-detected tasks whose
+  names match patterns like `test`/`pester`/`spec` are placed in the Test
+  group and get the `$pester` problem matcher appended; names matching
+  `build`/`compile`/`publish`/`package`/`release`/`dist` are placed in the
+  Build group. This makes "Run Test Task" and "Run Build Task" work without
+  any configuration
+- The "Sync Tasks" command uses the same classifier to pre-select tasks and
+  prompts for confirmation before writing `tasks.json`, so persisted entries
+  reflect user intent rather than pure heuristic
+- New setting `psake.classifyByName` (default: `true`) controls both
+  behaviors. Disable to skip classification entirely
+
+### Changed
+
+- Gallery banner color updated to `#1c1e21` for better contrast on the
+  Marketplace listing
+
 ## [1.4.0] 2026-04-12
 
 ### Added

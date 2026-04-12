@@ -3,7 +3,7 @@
 	"displayName": "psake",
 	"publisher": "psake",
 	"description": "Psake build script language support for Visual Studio Code.",
-	"version": "1.4.0",
+	"version": "1.5.0",
 	"icon": "images/psake.png",
 	"private": true,
 	"author": {
@@ -19,7 +19,7 @@
 		"url": "https://github.com/psake/psake-vscode"
 	},
 	"galleryBanner": {
-		"color": "#7E7E7C",
+		"color": "#1c1e21",
 		"theme": "dark"
 	},
 	"engines": {
@@ -238,6 +238,11 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Attach $psake and $psake-powershell problem matchers to provider-created tasks and set PSAKE_OUTPUT_FORMAT=Annotated on invoked psake processes. Requires psake v5 with Annotated output format support."
+				},
+				"psake.classifyByName": {
+					"type": "boolean",
+					"default": true,
+					"description": "Heuristically classify psake tasks as Build or Test based on their names. Test tasks are placed in the Test group and get the $pester problem matcher appended; Build tasks go to the Build group. Applies to auto-detected tasks and to the Sync Tasks prompt (which also asks for confirmation). Disable to skip classification entirely."
 				}
 			}
 		}

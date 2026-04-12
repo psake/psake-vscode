@@ -280,13 +280,17 @@
 	],
 	"cspell": {
 		"version": "0.2",
-		"ignorePaths": [],
+		"ignorePaths": [
+			".github/**",
+			"dist/**"
+		],
 		"dictionaryDefinitions": [],
 		"dictionaries": [],
 		"words": [
 			"opencollective",
 			"psake",
 			"psakefile",
+			"psakefiles",
 			"pwsh"
 		],
 		"ignoreWords": [],

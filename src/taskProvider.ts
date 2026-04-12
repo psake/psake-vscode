@@ -255,7 +255,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
             def.task,
             'psake',
             new vscode.ShellExecution(command, shellOptions),
-            problemMatcherEnabled ? ['$psake', '$psake-powershell'] : []
+            problemMatcherEnabled ? ['$psake', '$psake-notice', '$psake-powershell'] : []
         );
 
         task.detail = description || `Run psake task '${def.task}'`;

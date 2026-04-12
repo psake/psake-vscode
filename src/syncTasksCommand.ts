@@ -115,7 +115,7 @@ export async function syncTasksCommand(): Promise<void> {
             task: dt.name,
             file: dt.file,
             label: `psake: ${dt.name}`,
-            problemMatcher: ['$psake', '$psake-powershell'],
+            problemMatcher: ['$psake', '$psake-notice', '$psake-powershell'],
         };
 
         tasksJson.tasks.push(entry);

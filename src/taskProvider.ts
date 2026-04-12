@@ -5,6 +5,7 @@ import { TASK_TYPE } from './constants.js';
 import { logError } from './log.js';
 import { detectPowerShellExecutable } from './powershellUtils.js';
 import { PsakeModuleResolver, resolveAllTasks } from './moduleResolver.js';
+import { classifyByName } from './taskClassifier.js';
 
 export interface PsakeTaskDefinition extends vscode.TaskDefinition {
     type: 'psake';
@@ -238,6 +239,7 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
         const extraShellArgs: string[] = config.get('shellArgs') ?? ['-NoProfile'];
 
         const problemMatcherEnabled: boolean = config.get('problemMatcher.enabled') ?? true;
+        const classifyEnabled: boolean = config.get('classifyByName') ?? true;
 
         const shellOptions: vscode.ShellExecutionOptions = {
             executable,
@@ -249,18 +251,27 @@ export class PsakeTaskProvider implements vscode.TaskProvider {
             shellOptions.env = { PSAKE_OUTPUT_FORMAT: 'Annotated' };
         }
 
+        const cls = classifyEnabled ? classifyByName(def.task) : 'none';
+        const matchers = problemMatcherEnabled
+            ? (cls === 'test'
+                ? ['$psake', '$psake-powershell', '$pester']
+                : ['$psake', '$psake-powershell'])
+            : [];
+
         const task = new vscode.Task(
             def,
             folder,
             def.task,
             'psake',
             new vscode.ShellExecution(command, shellOptions),
-            problemMatcherEnabled ? ['$psake', '$psake-powershell'] : []
+            matchers
         );
 
         task.detail = description || `Run psake task '${def.task}'`;
 
-        if (def.task.toLowerCase() === 'default') {
+        if (cls === 'test') {
+            task.group = vscode.TaskGroup.Test;
+        } else if (cls === 'build' || def.task.toLowerCase() === 'default') {
             task.group = vscode.TaskGroup.Build;
         }
 

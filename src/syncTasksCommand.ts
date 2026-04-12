@@ -3,6 +3,7 @@ import * as path from 'path';
 import { findPsakeFiles, parsePsakeFile } from './psakeParser.js';
 import { TASK_TYPE } from './constants.js';
 import { logError } from './log.js';
+import { classifyByName, TaskClass } from './taskClassifier.js';
 
 interface TasksJsonContent {
     version: string;
@@ -15,6 +16,8 @@ interface TaskEntry {
     task?: string;
     label?: string;
     file?: string;
+    group?: string | { kind: string; isDefault?: boolean };
+    problemMatcher?: string | string[];
     [key: string]: unknown;
 }
 
@@ -102,31 +105,53 @@ export async function syncTasksCommand(): Promise<void> {
         }
     }
 
-    // Add new tasks
+    // Filter to tasks that will actually be added (new ones)
+    const newTasks = discoveredTasks.filter(dt => !existingPsakeKeys.has(taskKey(dt.name, dt.file)));
+
+    if (newTasks.length === 0) {
+        void vscode.window.showInformationMessage('tasks.json is already up to date with all psake tasks.');
+        return;
+    }
+
+    // Classify new tasks by name, then let the user confirm/adjust.
     const config = vscode.workspace.getConfiguration('psake', folder);
     const problemMatcherEnabled: boolean = config.get('problemMatcher.enabled') ?? true;
-    let added = 0;
-    for (const dt of discoveredTasks) {
-        const key = taskKey(dt.name, dt.file);
-        if (existingPsakeKeys.has(key)) {
-            continue;
+    const classifyEnabled: boolean = config.get('classifyByName') ?? true;
+
+    const classifications = new Map<string, TaskClass>();
+    for (const dt of newTasks) {
+        classifications.set(taskKey(dt.name, dt.file), classifyEnabled ? classifyByName(dt.name) : 'none');
+    }
+
+    if (classifyEnabled) {
+        const adjusted = await promptClassifications(newTasks, classifications);
+        if (!adjusted) {
+            // User cancelled
+            return;
         }
+    }
+
+    // Add new tasks
+    let added = 0;
+    for (const dt of newTasks) {
+        const cls = classifications.get(taskKey(dt.name, dt.file)) ?? 'none';
+        const matchers = problemMatcherEnabled
+            ? (cls === 'test'
+                ? ['$psake', '$psake-powershell', '$pester']
+                : ['$psake', '$psake-powershell'])
+            : undefined;
 
         const entry: TaskEntry = {
             type: TASK_TYPE,
             task: dt.name,
             file: dt.file,
             label: `psake: ${dt.name}`,
-            ...(problemMatcherEnabled && { problemMatcher: ['$psake', '$psake-powershell'] }),
+            ...(cls !== 'none' && { group: cls }),
+            ...(matchers && { problemMatcher: matchers }),
         };
 
         tasksJson.tasks.push(entry);
         added++;
-    }
-
-    if (added === 0) {
-        void vscode.window.showInformationMessage('tasks.json is already up to date with all psake tasks.');
-        return;
     }
 
     // Ensure .vscode directory exists
@@ -151,4 +176,72 @@ export async function syncTasksCommand(): Promise<void> {
 
 function taskKey(name: string, file?: string): string {
     return `${(file ?? '').toLowerCase()}::${name.toLowerCase()}`;
+}
+
+interface DiscoveredTask {
+    name: string;
+    file: string;
+    description: string;
+}
+
+/**
+ * Shows two sequential multi-select prompts (test, then build) to let the user
+ * confirm or override the heuristic classification. Mutates the supplied
+ * classifications map. Returns false if the user cancelled either prompt.
+ */
+async function promptClassifications(
+    tasks: DiscoveredTask[],
+    classifications: Map<string, TaskClass>
+): Promise<boolean> {
+    interface Item extends vscode.QuickPickItem {
+        key: string;
+    }
+
+    const items: Item[] = tasks.map(dt => ({
+        key: taskKey(dt.name, dt.file),
+        label: dt.name,
+        description: dt.file,
+        detail: dt.description || undefined,
+    }));
+
+    // Test pass: pre-select heuristic-test tasks
+    const testPicks = await vscode.window.showQuickPick(
+        items.map(it => ({ ...it, picked: classifications.get(it.key) === 'test' })),
+        {
+            canPickMany: true,
+            title: 'psake: Sync Tasks (1/2) — which tasks are Test tasks?',
+            placeHolder: 'Selected tasks will get group="test" and the $pester problem matcher. Press Enter to confirm.',
+        }
+    );
+    if (!testPicks) {
+        return false;
+    }
+    const testKeys = new Set(testPicks.map(p => p.key));
+
+    // Build pass: pre-select heuristic-build tasks, excluding any marked as test
+    const buildCandidates = items.filter(it => !testKeys.has(it.key));
+    const buildPicks = await vscode.window.showQuickPick(
+        buildCandidates.map(it => ({ ...it, picked: classifications.get(it.key) === 'build' })),
+        {
+            canPickMany: true,
+            title: 'psake: Sync Tasks (2/2) — which tasks are Build tasks?',
+            placeHolder: 'Selected tasks will get group="build". Press Enter to confirm.',
+        }
+    );
+    if (!buildPicks) {
+        return false;
+    }
+    const buildKeys = new Set(buildPicks.map(p => p.key));
+
+    // Apply user choices
+    for (const it of items) {
+        if (testKeys.has(it.key)) {
+            classifications.set(it.key, 'test');
+        } else if (buildKeys.has(it.key)) {
+            classifications.set(it.key, 'build');
+        } else {
+            classifications.set(it.key, 'none');
+        }
+    }
+    return true;
 }

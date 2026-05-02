@@ -55,6 +55,10 @@ export interface PsakeIncludeInfo {
  *   Task default -Depends Test, Build
  *   Task -Name Build -Depends Clean -Description "Compiles the project" { ... }
  *   Task "Release" -Depends @(Build, Test) -Action { ... }
+ *
+ * Also handles the psake v5 declarative hashtable syntax:
+ *
+ *   Task 'Build' @{ DependsOn = 'Clean'; Description = 'Compiles the project'; Action = { ... } }
  */
 export function parsePsakeFile(content: string): PsakeTaskInfo[] {
     const tasks: PsakeTaskInfo[] = [];
@@ -64,8 +68,12 @@ export function parsePsakeFile(content: string): PsakeTaskInfo[] {
     // can be matched by a single-line regex pass.
     const joined = joinContinuationLines(lines);
 
-    for (let i = 0; i < joined.length; i++) {
-        const { text, originalLine } = joined[i];
+    // Join multi-line @{ } hashtable blocks (psake v5 declarative syntax) so
+    // that they too can be matched by a single-line regex pass.
+    const expanded = joinHashtableBlocks(joined);
+
+    for (let i = 0; i < expanded.length; i++) {
+        const { text, originalLine } = expanded[i];
 
         // Skip comments and empty lines quickly
         const trimmed = text.trimStart();
@@ -117,6 +125,61 @@ interface JoinedLine {
     originalLine: number;
 }
 
+/**
+ * Returns the net number of `{` minus `}` characters in a text fragment.
+ * Used to track open/close brace depth when joining multi-line hashtable blocks.
+ */
+function netBraceCount(text: string): number {
+    let count = 0;
+    for (const ch of text) {
+        if (ch === '{') { count++; }
+        else if (ch === '}') { count--; }
+    }
+    return count;
+}
+
+/**
+ * Joins lines that form a multi-line `@{ }` hashtable block following a Task
+ * keyword into a single logical line.  This allows the single-line regex
+ * matchers to work on the psake v5 declarative syntax:
+ *
+ *   Task 'Build' @{
+ *       DependsOn   = 'Clean'
+ *       Description = 'Compiles the project'
+ *       Action      = { ... }
+ *   }
+ *
+ * Lines that are already self-contained (the `@{` and its matching `}` appear
+ * on the same line) are passed through unchanged.
+ */
+function joinHashtableBlocks(lines: JoinedLine[]): JoinedLine[] {
+    const result: JoinedLine[] = [];
+    let i = 0;
+    while (i < lines.length) {
+        const current = lines[i];
+        const trimmed = current.text.trimStart();
+
+        // Only process Task declarations that open a hashtable block
+        if (/^(?:function\s+)?Task\s+/i.test(trimmed) && /@\{/.test(current.text)) {
+            let accumulated = current.text;
+            let braceDepth = netBraceCount(current.text);
+            i++;
+            // Keep joining subsequent lines until all braces are balanced
+            while (i < lines.length && braceDepth > 0) {
+                const next = lines[i];
+                accumulated += ' ' + next.text.trim();
+                braceDepth += netBraceCount(next.text);
+                i++;
+            }
+            result.push({ text: accumulated, originalLine: current.originalLine });
+        } else {
+            result.push(current);
+            i++;
+        }
+    }
+    return result;
+}
+
 function joinContinuationLines(lines: string[]): JoinedLine[] {
     const result: JoinedLine[] = [];
     let i = 0;
@@ -155,8 +218,23 @@ function parseTaskLine(line: string, lineIndex: number): PsakeTaskInfo | null {
         return null;
     }
 
-    const dependencies = extractDepends(rest);
-    const description = extractDescription(rest);
+    // Detect psake v5 declarative hashtable syntax: Task 'Name' @{ ... }
+    const hasHashtable = /@\{/.test(rest);
+
+    let dependencies: string[];
+    let description: string;
+
+    if (hasHashtable) {
+        // Extract the content between the outermost @{ and its matching }
+        const htMatch = rest.match(/@\{([\s\S]*)\}/);
+        const htContent = htMatch ? htMatch[1] : '';
+        dependencies = extractHashtableDepends(htContent);
+        description = extractHashtableDescription(htContent);
+    } else {
+        dependencies = extractDepends(rest);
+        description = extractDescription(rest);
+    }
+
     const fromModule = extractFromModule(rest) ?? undefined;
     const requiredVersion = (extractVersionParam(rest, 'RequiredVersion') ?? extractVersionParam(rest, 'Version')) ?? undefined;
     const minimumVersion = extractVersionParam(rest, 'MinimumVersion') ?? undefined;
@@ -201,6 +279,50 @@ function extractDescription(rest: string): string {
     // -Description "some text" or -Description 'some text'
     const match = rest.match(/-Description\s+["']([^"']*)["']/i);
     return match ? match[1] : '';
+}
+
+/**
+ * Extracts the `Description` value from a psake v5 declarative hashtable body.
+ * Handles:  Description = 'some text'  or  Description = "some text"
+ * Uses a backreference to ensure the closing quote matches the opening quote,
+ * which correctly handles descriptions that contain the other quote character
+ * (e.g. Description = "It's working").
+ */
+function extractHashtableDescription(htContent: string): string {
+    const match = htContent.match(/\bDescription\s*=\s*(['"])(.*?)\1/i);
+    return match ? match[2] : '';
+}
+
+/**
+ * Extracts the `DependsOn` value(s) from a psake v5 declarative hashtable body.
+ * Handles these forms:
+ *   DependsOn = 'Clean'
+ *   DependsOn = @('Clean', 'Build')
+ *   DependsOn = 'Clean', 'Build'
+ *   DependsOn = Clean          (unquoted)
+ */
+function extractHashtableDepends(htContent: string): string[] {
+    // 1. Try @( ... ) array literal first
+    const arrayMatch = htContent.match(/\bDependsOn\s*=\s*@\(([^)]*)\)/i);
+    if (arrayMatch) {
+        return arrayMatch[1]
+            .split(',')
+            .map(s => s.trim().replace(/^(['"])(.*)\1$/, '$2'))
+            .filter(Boolean);
+    }
+
+    // 2. Scalar or comma-separated values.
+    // Use a non-greedy match that stops at the next hashtable key ( word = ),
+    // a semicolon, a closing brace, or end-of-string.
+    const match = htContent.match(/\bDependsOn\s*=\s*(.*?)(?=\s*[;}\n]|\s+\w+\s*=|$)/i);
+    if (match && match[1].trim()) {
+        return match[1]
+            .split(',')
+            .map(s => s.trim().replace(/^(['"])(.*)\1$/, '$2'))
+            .filter(Boolean);
+    }
+
+    return [];
 }
 
 function extractFromModule(rest: string): string | null {

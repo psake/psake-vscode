@@ -219,6 +219,127 @@ suite('psakeParser', () => {
         });
     });
 
+    suite('psake v5 declarative hashtable syntax', () => {
+        test('parses a simple v5 hashtable task (no depends, no description)', () => {
+            const content = `Task 'Build' @{ Action = { "build" } }`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.strictEqual(tasks[0].name, 'Build');
+            assert.deepStrictEqual(tasks[0].dependencies, []);
+            assert.strictEqual(tasks[0].description, '');
+        });
+
+        test('parses Description from a v5 hashtable (single-quoted)', () => {
+            const content = `Task Build @{ Description = 'Compiles the project'; Action = { } }`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.strictEqual(tasks[0].description, 'Compiles the project');
+        });
+
+        test('parses Description from a v5 hashtable (double-quoted)', () => {
+            const content = `Task Build @{ Description = "Compiles the project"; Action = { } }`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.strictEqual(tasks[0].description, 'Compiles the project');
+        });
+
+        test('parses Description from a v5 hashtable containing the other quote type', () => {
+            const content = `Task Build @{ Description = "It's working"; Action = { } }`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].description, "It's working");
+        });
+
+        test('parses DependsOn (single value) from a v5 hashtable', () => {
+            const content = `Task Build @{ DependsOn = 'Clean'; Action = { } }`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.deepStrictEqual(tasks[0].dependencies, ['Clean']);
+        });
+
+        test('parses DependsOn as @() array literal from a v5 hashtable', () => {
+            const content = `Task Build @{ DependsOn = @('Clean', 'Restore'); Action = { } }`;
+            const tasks = parsePsakeFile(content);
+            assert.deepStrictEqual(tasks[0].dependencies, ['Clean', 'Restore']);
+        });
+
+        test('parses DependsOn as comma-separated values from a v5 hashtable', () => {
+            const content = `Task Build @{ DependsOn = 'Clean', 'Restore'; Action = { } }`;
+            const tasks = parsePsakeFile(content);
+            assert.deepStrictEqual(tasks[0].dependencies, ['Clean', 'Restore']);
+        });
+
+        test('parses both DependsOn and Description from a v5 hashtable', () => {
+            const content = `Task Build @{ DependsOn = 'Clean'; Description = 'Compiles the project'; Action = { } }`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.strictEqual(tasks[0].name, 'Build');
+            assert.deepStrictEqual(tasks[0].dependencies, ['Clean']);
+            assert.strictEqual(tasks[0].description, 'Compiles the project');
+        });
+
+        test('parses a v5 default task with DependsOn only', () => {
+            const content = `Task default @{ DependsOn = 'Build' }`;
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.strictEqual(tasks[0].name, 'default');
+            assert.deepStrictEqual(tasks[0].dependencies, ['Build']);
+        });
+
+        test('records correct line number for v5 hashtable task', () => {
+            const content = ['', `Task Build @{ Description = 'x' }`, ''].join('\n');
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks[0].line, 1);
+        });
+
+        test('parses multi-line v5 hashtable (no backticks)', () => {
+            const content = [
+                "Task Build @{",
+                "    DependsOn   = 'Clean'",
+                "    Description = 'Compiles the project'",
+                "    Action = { 'build' }",
+                "}",
+            ].join('\n');
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.strictEqual(tasks[0].name, 'Build');
+            assert.deepStrictEqual(tasks[0].dependencies, ['Clean']);
+            assert.strictEqual(tasks[0].description, 'Compiles the project');
+            assert.strictEqual(tasks[0].line, 0);
+        });
+
+        test('parses multi-line v5 hashtable with nested action scriptblock', () => {
+            const content = [
+                "Task Package @{",
+                "    DependsOn   = @('Build', 'Test')",
+                "    Description = 'Creates a release package'",
+                "    Action = {",
+                "        Write-Host 'Packaging'",
+                "    }",
+                "}",
+            ].join('\n');
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 1);
+            assert.strictEqual(tasks[0].name, 'Package');
+            assert.deepStrictEqual(tasks[0].dependencies, ['Build', 'Test']);
+            assert.strictEqual(tasks[0].description, 'Creates a release package');
+        });
+
+        test('parses multiple tasks mixing v4 and v5 syntax', () => {
+            const content = [
+                "Task default -Depends Build",
+                "Task Clean @{ Description = 'Removes build artifacts' }",
+                "Task Build -Depends Clean -Description 'Compiles the code' { }",
+            ].join('\n');
+            const tasks = parsePsakeFile(content);
+            assert.strictEqual(tasks.length, 3);
+            assert.strictEqual(tasks[0].name, 'default');
+            assert.strictEqual(tasks[1].name, 'Clean');
+            assert.strictEqual(tasks[1].description, 'Removes build artifacts');
+            assert.strictEqual(tasks[2].name, 'Build');
+            assert.strictEqual(tasks[2].description, 'Compiles the code');
+        });
+    });
+
     suite('parseIncludes', () => {
         test('parses positional Include', () => {
             const content = `Include './helpers.ps1'`;

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-05-12
+
+### Added
+
+- **Psake v5 declarative hashtable syntax support**: the extension now parses tasks written with the new `@{}` style introduced in psake v5, correctly extracting `Description` and `DependsOn` values from both single-line and multi-line declarations
+
 ## [1.5.0] - 2026-04-12
 
 ### Added

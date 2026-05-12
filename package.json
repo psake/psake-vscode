@@ -3,7 +3,7 @@
 	"displayName": "psake",
 	"publisher": "psake",
 	"description": "Psake build script language support for Visual Studio Code.",
-	"version": "1.5.0",
+	"version": "1.6.0",
 	"icon": "images/psake.png",
 	"private": true,
 	"author": {
@@ -292,6 +292,7 @@
 		"dictionaryDefinitions": [],
 		"dictionaries": [],
 		"words": [
+			"hashtable",
 			"nologo",
 			"opencollective",
 			"psake",
